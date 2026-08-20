@@ -1,17 +1,20 @@
 {
   "name": "ticket-booking-system",
   "version": "1.0.0",
-  "type": "commonjs",
-  "main": "server.js",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "seed": "node seed.js"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:apply:local": "wrangler d1 execute ticket-booking-db --local --file=./migrations/0001_init.sql",
+    "db:apply:remote": "wrangler d1 execute ticket-booking-db --remote --file=./migrations/0001_init.sql",
+    "db:seed:local": "wrangler d1 execute ticket-booking-db --local --file=./migrations/0002_seed.sql",
+    "db:seed:remote": "wrangler d1 execute ticket-booking-db --remote --file=./migrations/0002_seed.sql"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
-    "express": "^4.19.2",
-    "nodemailer": "^6.9.13",
-    "qrcode": "^1.5.3"
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
   }
 }

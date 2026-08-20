@@ -1,10 +1,8 @@
-'use strict';
+import QRCodeModule from 'qrcode';
 
-const qrcode = require('qrcode');
+const QRCode = QRCodeModule && QRCodeModule.default ? QRCodeModule.default : QRCodeModule;
 
-// Returns a data URL (base64 PNG) encoding the booking reference.
-function bookingQr(bookingRef) {
-  return qrcode.toDataURL(bookingRef);
+export async function bookingQr(bookingRef) {
+  const svg = await QRCode.toString(bookingRef, { type: 'svg', margin: 1 });
+  return 'data:image/svg+xml;base64,' + btoa(svg);
 }
-
-module.exports = { bookingQr };

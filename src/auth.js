@@ -1,76 +1,135 @@
-'use strict';
+const enc = new TextEncoder();
+const dec = new TextDecoder();
 
-const crypto = require('crypto');
+const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_BITS = 256;
+const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
-// HMAC signing secret. Falls back to a random per-process secret so the app
-// still works when SECRET is not configured (tokens just reset on restart).
-const SECRET = process.env.SECRET || crypto.randomBytes(32).toString('hex');
-const TOKEN_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
+function bytesToB64url(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-function verifyPassword(password, stored) {
-  const parts = String(stored || '').split(':');
-  if (parts.length !== 2) return false;
-  const [salt, hash] = parts;
-  const candidate = crypto.scryptSync(String(password), salt, 64);
-  const actual = Buffer.from(hash, 'hex');
-  return candidate.length === actual.length && crypto.timingSafeEqual(candidate, actual);
+function b64urlToBytes(str) {
+  const s = String(str).replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+  const bin = atob(s + pad);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
-function issueToken(user) {
-  const body = Buffer.from(
-    JSON.stringify({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      iat: Date.now(),
-      exp: Date.now() + TOKEN_TTL,
-    })
-  ).toString('base64url');
-  const sig = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
-  return `${body}.${sig}`;
+// Constant-time byte comparison (Web Crypto has no timingSafeEqual).
+export function timingSafeEqualBytes(a, b) {
+  if (!(a instanceof Uint8Array) || !(b instanceof Uint8Array)) return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
 }
 
-function verifyToken(token) {
-  if (typeof token !== 'string' || !token.includes('.')) return null;
-  const [body, sig] = token.split('.');
-  const expected = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+async function pbkdf2Bytes(password, saltBytes, iterations) {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
+    keyMaterial,
+    PBKDF2_BITS
+  );
+  return new Uint8Array(bits);
+}
 
+export async function hashPassword(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const hash = await pbkdf2Bytes(password, salt, PBKDF2_ITERATIONS);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${bytesToB64url(salt)}$${bytesToB64url(hash)}`;
+}
+
+export async function verifyPassword(password, stored) {
+  if (typeof stored !== 'string') return false;
+  const parts = stored.split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
+  const iterations = Number(parts[1]);
+  if (!Number.isInteger(iterations) || iterations <= 0) return false;
+  const salt = b64urlToBytes(parts[2]);
+  const expected = b64urlToBytes(parts[3]);
+  const candidate = await pbkdf2Bytes(password, salt, iterations);
+  return timingSafeEqualBytes(candidate, expected);
+}
+
+async function hmacSha256(secret, message) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  return new Uint8Array(sig);
+}
+
+// Token format: base64url(payload).base64url(exp).base64url(sig)
+// payload = { uid, role }, exp = epoch seconds, sig = HMAC(secret, `${payload}.${exp}`)
+export async function signToken(uid, role, secret, nowSec = Math.floor(Date.now() / 1000)) {
+  const payloadStr = JSON.stringify({ uid, role });
+  const exp = nowSec + TOKEN_TTL_SECONDS;
+  const payloadB64 = bytesToB64url(enc.encode(payloadStr));
+  const expB64 = bytesToB64url(enc.encode(String(exp)));
+  const sig = await hmacSha256(secret, `${payloadB64}.${expB64}`);
+  return `${payloadB64}.${expB64}.${bytesToB64url(sig)}`;
+}
+
+export async function verifyToken(token, secret) {
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [payloadB64, expB64, sigB64] = parts;
+  const expectedSig = await hmacSha256(secret, `${payloadB64}.${expB64}`);
+  const givenSig = b64urlToBytes(sigB64);
+  if (!timingSafeEqualBytes(givenSig, expectedSig)) return null;
   let payload;
+  let exp;
   try {
-    payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    payload = JSON.parse(dec.decode(b64urlToBytes(payloadB64)));
+    exp = Number(dec.decode(b64urlToBytes(expB64)));
   } catch {
     return null;
   }
-  if (!payload.exp || payload.exp < Date.now()) return null;
+  if (!payload || typeof payload.uid === 'undefined' || !Number.isFinite(exp)) return null;
+  if (exp <= Math.floor(Date.now() / 1000)) return null;
+  return { uid: payload.uid, role: payload.role, exp };
+}
+
+export class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export function extractToken(request) {
+  const header = request.headers.get('Authorization') || '';
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
+}
+
+export async function requireAuth(c) {
+  const token = extractToken(c.request);
+  const payload = token ? await verifyToken(token, c.env.SECRET || '') : null;
+  if (!payload) throw new HttpError(401, 'authentication required');
   return payload;
 }
 
-function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  const payload = token ? verifyToken(token) : null;
-  if (!payload) return res.status(401).json({ error: 'authentication required' });
-  req.user = { id: payload.sub, email: payload.email, role: payload.role };
-  next();
+export async function requireRole(c, ...roles) {
+  const payload = await requireAuth(c);
+  if (!roles.includes(payload.role)) {
+    throw new HttpError(403, 'forbidden: insufficient role');
+  }
+  return payload;
 }
-
-function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: 'authentication required' });
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'forbidden: insufficient role' });
-    }
-    next();
-  };
-}
-
-module.exports = { hashPassword, verifyPassword, issueToken, verifyToken, requireAuth, requireRole };

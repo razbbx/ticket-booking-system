@@ -1,59 +1,67 @@
-'use strict';
+const DEFAULT_HOLD_TTL = 10 * 60 * 1000; // 10 minutes
 
-const db = require('../db');
-const { offerNextInLine, expireStaleOffers } = require('./waitlist');
+function minutesToMs(env, name, fallback) {
+  const v = Number(env[name]);
+  return Number.isFinite(v) && v > 0 ? v * 60 * 1000 : fallback;
+}
 
-const HOLD_TTL = parseInt(process.env.HOLD_TTL, 10) || 10 * 60 * 1000; // ms, default 10 minutes
-const OFFER_TTL = parseInt(process.env.OFFER_TTL, 10) || 10 * 60 * 1000; // ms, default 10 minutes
-const SWEEP_INTERVAL = parseInt(process.env.HOLD_SWEEP_INTERVAL, 10) || 30 * 1000; // ms, default 30 seconds
+export function holdTtl(env) {
+  return minutesToMs(env, 'HOLD_TTL_MINUTES', DEFAULT_HOLD_TTL);
+}
 
-// Lazy expiry: an expired hold reads as available without needing the sweep.
-function effectiveStatus(row) {
-  if (row.status === 'held' && row.hold_expires_at && row.hold_expires_at <= Date.now()) {
+export function offerTtl(env) {
+  return minutesToMs(env, 'OFFER_TTL_MINUTES', DEFAULT_HOLD_TTL);
+}
+
+// Lazy expiry: an expired hold reads as available without needing a sweep.
+export function effectiveStatus(row, now = Date.now()) {
+  if (row.status === 'held' && row.hold_expires_at && row.hold_expires_at <= now) {
     return 'available';
   }
   return row.status;
 }
 
-// Releases all expired holds in one transaction and returns the released seats
-// so the caller can re-offer them to the waitlist.
-function releaseExpiredHolds() {
-  const now = Date.now();
-  const released = db
+// SQL fragment used anywhere availability is computed; the single `?` binds
+// the current time in ms. Expired holds are treated as available.
+export const AVAILABLE_SQL =
+  "(status = 'available' OR (status = 'held' AND hold_expires_at < ?))";
+
+export async function releaseExpiredHolds(db, now = Date.now()) {
+  const res = await db
     .prepare(
-      `SELECT id, event_id, category_name FROM show_seats
-       WHERE status = 'held' AND hold_expires_at <= ?`
+      `UPDATE show_seats
+       SET status = 'available', hold_token = NULL, hold_expires_at = NULL
+       WHERE status = 'held' AND hold_expires_at < ?`
     )
-    .all(now);
-  if (released.length === 0) return [];
-
-  const release = db.prepare(
-    `UPDATE show_seats
-     SET status = 'available', held_by = NULL, hold_token = NULL, hold_expires_at = NULL
-     WHERE id = ? AND status = 'held' AND hold_expires_at <= ?`
-  );
-  db.transaction(() => {
-    for (const s of released) release.run(s.id, now);
-  })();
-
-  return released;
+    .bind(now)
+    .run();
+  return res.meta.changes || 0;
 }
 
-// Periodic sweep: releases expired holds/offers, then hands the freed seats to
-// the next customer in line on that category's waitlist.
-function startHoldSweep() {
-  const timer = setInterval(() => {
-    try {
-      const released = releaseExpiredHolds();
-      const expiredOffers = expireStaleOffers();
-      for (const s of released) offerNextInLine(s.event_id, s.category_name);
-      for (const s of expiredOffers) offerNextInLine(s.event_id, s.category_name);
-    } catch (err) {
-      console.error('[HOLD SWEEP]', err.message);
-    }
-  }, SWEEP_INTERVAL);
-  timer.unref();
-  return timer;
-}
+export async function runSweep(db, env) {
+  const now = Date.now();
+  const released = await db
+    .prepare(
+      `SELECT event_id, category_name FROM show_seats
+       WHERE status = 'held' AND hold_expires_at < ?`
+    )
+    .bind(now)
+    .all();
+  const releasedCount = await releaseExpiredHolds(db, now);
 
-module.exports = { HOLD_TTL, OFFER_TTL, SWEEP_INTERVAL, effectiveStatus, releaseExpiredHolds, startHoldSweep };
+  const { expireStaleOffers, offerNextInLine } = await import('./waitlist-service.js');
+  const expiredOffers = await expireStaleOffers(db, env, now);
+
+  const categories = new Set();
+  for (const r of released.results || []) {
+    categories.add(`${r.event_id}:${r.category_name}`);
+  }
+  for (const f of expiredOffers) {
+    categories.add(`${f.event_id}:${f.category_name}`);
+  }
+  for (const key of categories) {
+    const [eventId, categoryName] = key.split(':');
+    await offerNextInLine(db, env, Number(eventId), categoryName);
+  }
+  return { released: releasedCount, expiredOffers: expiredOffers.length };
+}
