@@ -3,9 +3,14 @@ node_modules/
 
 # Environment
 .env
+.dev.vars
+
+# Wrangler / Workers
+.wrangler/
 
 # Database (SQLite)
 data/*.db*
+data/
 
 # Logs
 npm-debug.log

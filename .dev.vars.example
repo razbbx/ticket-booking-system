@@ -1,0 +1,12 @@
+# Local development secrets (gitignored). Do NOT commit real values.
+# Production equivalents are set with `npx wrangler secret put <NAME>`.
+
+# Secret used to sign auth tokens - any random string, e.g. `openssl rand -hex 32`
+SECRET=replace-with-random-hex
+
+# Optional: Resend API key for sending QR ticket emails.
+# If unset, Cloudflare Email Sending (EMAIL binding) or console logging is used.
+RESEND_API_KEY=
+
+# Optional: sender used for Resend emails.
+RESEND_FROM=Ticket Booking <tickets@yourdomain.com>
