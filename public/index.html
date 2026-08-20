@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Booking System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="navbar-inner">
+      <a href="#/events" class="brand" data-nav="home">Ticket Booking System</a>
+      <nav class="nav-links" id="navLinks"></nav>
+      <div class="nav-user" id="navUser"></div>
+    </div>
+  </header>
+
+  <main id="view" class="container" aria-live="polite"></main>
+
+  <footer class="footer">
+    <p>Movie &amp; Concert Ticket Booking &middot; Seat holds auto-release after the hold TTL expires</p>
+  </footer>
+
+  <div id="toastRegion" class="toast-region" aria-live="assertive"></div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div class="modal">
+      <h3 id="modalTitle">Confirm</h3>
+      <p id="modalBody"></p>
+      <div class="modal-actions">
+        <button type="button" id="modalCancel" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="modalOk" class="btn btn-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js" defer></script>
+</body>
+</html>
