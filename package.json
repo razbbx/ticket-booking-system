@@ -1,0 +1,17 @@
+{
+  "name": "ticket-booking-system",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2",
+    "nodemailer": "^6.9.13",
+    "qrcode": "^1.5.3"
+  }
+}
