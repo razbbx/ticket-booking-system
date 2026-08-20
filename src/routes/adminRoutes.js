@@ -29,9 +29,12 @@ function validateVenue(body) {
     e.status = 400;
     throw e;
   }
+  // Accept both plain names (["Premium", "Standard"]) and full objects
+  // ({ name, rows }); the UI submits names, the API contract prefers objects.
+  const normalized = categories.map((cat) => (typeof cat === 'string' ? { name: cat } : cat));
   const seen = new Set();
   let rowBudget = r;
-  for (const cat of categories) {
+  for (const cat of normalized) {
     if (!cat || !cat.name) {
       const e = new Error('each category needs a name');
       e.status = 400;
@@ -56,8 +59,30 @@ function validateVenue(body) {
     }
     rowBudget -= rc;
   }
+  // When no category declares explicit rows, split the venue evenly so a plain
+  // name list (["Premium", "Standard"]) maps across the whole floor instead of
+  // the first category absorbing every row (see categoryForRow).
+  const anyExplicitRows = normalized.some((cat) => cat.rows != null && Number(cat.rows) > 0);
+  if (!anyExplicitRows) {
+    if (r < normalized.length) {
+      const e = new Error('venue must have at least as many rows as categories');
+      e.status = 400;
+      throw e;
+    }
+    const base = Math.floor(r / normalized.length);
+    let remaining = r;
+    normalized.forEach((cat, i) => {
+      if (i === normalized.length - 1) cat.rows = remaining;
+      else {
+        cat.rows = base;
+        remaining -= base;
+      }
+    });
+  } else {
+    for (const cat of normalized) cat.rows = cat.rows ? Number(cat.rows) : 0;
+  }
   // Categories whose rows is 0/omitted absorb the remaining rows (see categoryForRow).
-  return { name, address, rows: r, cols: c, categories };
+  return { name, address, rows: r, cols: c, categories: normalized };
 }
 
 router.post('/venues', (req, res) => {

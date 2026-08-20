@@ -20,7 +20,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Serves the frontend build when a sibling "public" directory exists.
-const publicDir = path.join(__dirname, '..', 'public');
+const publicDir = path.join(__dirname, 'public');
 if (fs.existsSync(publicDir)) app.use(express.static(publicDir));
 
 // Routers use absolute /api paths, so they are all mounted at the root.

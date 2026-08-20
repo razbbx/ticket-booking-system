@@ -19,6 +19,7 @@
   var hold = null;              // { eventId, seatIds:[], tokens:[], expiresAt }
   var claim = null;             // { token, eventId, seatIds:[], expiresAt } (waitlist offer)
   var selectedSeats = [];       // row-col keys currently chosen by user
+  var seatIdMap = {};           // 'row:col' -> DB seat id (populated on seat-map refresh)
   var pollTimer = null;
   var countdownTimer = null;
 
@@ -414,7 +415,7 @@
   async function viewBrowse() {
     setView('<div class="center"><p class="muted">Loading events...</p></div>');
     var q = getQuery().q || '';
-    var type = getQuery().type || '';
+    var type = (getQuery().type || '').toLowerCase();
     var date = getQuery().date || '';
     var params = new URLSearchParams();
     if (type) params.set('type', type);
@@ -432,7 +433,8 @@
     }
 
     var typeOptions = TYPES.map(function (t) {
-      return '<option value="' + t + '"' + (type === t ? ' selected' : '') + '>' + t + '</option>';
+      var v = t.toLowerCase();
+      return '<option value="' + v + '"' + (type === v ? ' selected' : '') + '>' + t + '</option>';
     }).join('');
 
     var html =
@@ -461,6 +463,11 @@
     var priceText = 'Price on selection';
     if (price) {
       var min = price.min !== undefined ? price.min : price.from;
+      if (min === undefined && typeof price === 'object') {
+        var vals = Object.keys(price).map(function (k) { return Number(price[k]); })
+          .filter(function (n) { return !isNaN(n); });
+        if (vals.length) min = Math.min.apply(Math, vals);
+      }
       if (min !== undefined && min !== null) priceText = 'From ' + money(min);
     }
     var venue = ev.venue;
@@ -593,6 +600,7 @@
     seats.forEach(function (s) {
       var key = seatKey(s.row, s.col);
       seatsByKey[key] = s;
+      seatIdMap[key] = s.id;
       if (s.category && categories.indexOf(s.category) === -1) categories.push(s.category);
       if (s.status === 'available' || s.status === 'free' || s.status === 'open') availableCount++;
     });
@@ -687,27 +695,22 @@
 
     var html = '';
 
-    if (hasClaim) {
-      var claimRemaining = Math.max(0, claim.expiresAt - Date.now());
-      html += '<div class="countdown" id="claimCountdown">Seat offer expires in ' +
-        fmtRemaining(claimRemaining) + '</div>';
-      startCountdown('claimCountdown', claimRemaining, 'offer');
-    }
-
-    if (hasHold) {
-      var remaining = Math.max(0, hold.expiresAt - Date.now());
+    if (hasHold || hasClaim) {
+      var remaining = Math.max(0, (claim ? claim.expiresAt : hold.expiresAt) - Date.now());
+      var seatCount = claim ? (claim.seatIds || []).length : hold.seatIds.length;
       html += '<div class="card">' +
         '<div class="section-head"><h2>Complete your booking</h2></div>' +
-        '<div class="countdown" id="holdCountdown">Seats held for ' + fmtRemaining(remaining) + '</div>' +
-        '<p class="muted">' + hold.seatIds.length + ' seat(s) reserved for you. ' +
+        '<div class="countdown" id="holdCountdown">' +
+          (claim ? 'Seat offer held for ' : 'Seats held for ') + fmtRemaining(remaining) + '</div>' +
+        '<p class="muted">' + seatCount + ' seat(s) reserved for you. ' +
           'If you take too long, the hold will expire and the seats will be released.</p>' +
-        checkoutFormHtml(selectedCount) +
+        checkoutFormHtml(seatCount) +
         '<div class="mt"><button type="button" class="btn btn-ghost" data-action="release-hold">Release hold and reselect</button></div>' +
       '</div>';
-      startCountdown('holdCountdown', remaining);
+      startCountdown('holdCountdown', remaining, claim ? 'offer' : 'hold');
     } else if (selectedCount > 0) {
       html += '<div class="card">' +
-        '<div class="section-head"><h2>' + (hasClaim ? 'Seat offered to you' : 'Selected seats') + '</h2></div>' +
+        '<div class="section-head"><h2>Selected seats</h2></div>' +
         '<p>' + selectedSeats.map(seatLabel).join(', ') + '</p>' +
         '<button type="button" class="btn btn-primary" data-action="hold-seats">Hold seats for booking</button>' +
         '<p class="hint mt">Selected ' + selectedCount + ' of max ' + MAX_SELECTABLE +
@@ -790,9 +793,14 @@
     var btn = document.querySelector('[data-action="hold-seats"]');
     if (btn) btn.disabled = true;
     try {
+      var ids = selectedSeats.map(function (k) { return seatIdMap[k]; }).filter(Boolean);
+      if (!ids.length) {
+        toast('Could not resolve the selected seats. Please reselect them.', 'error');
+        return;
+      }
       var res = await api('/api/events/' + eventId + '/hold', {
         method: 'POST',
-        body: { seatIds: selectedSeats }
+        body: { seatIds: ids }
       });
       var tokens = holdTokens(res);
       var expiresAt = holdExpiry(res);
@@ -843,11 +851,12 @@
         payload.holdToken = hold.tokens.length === 1 ? hold.tokens[0] : hold.tokens;
       }
       if (claim && String(claim.eventId) === String(eventId)) {
-        payload.offerToken = claim.token;
+        payload.holdToken = claim.holdToken || claim.token;
       }
 
       var res = await api('/api/events/' + eventId + '/book', { method: 'POST', body: payload });
       var booking = extractBooking(res);
+      if (res && Array.isArray(res.bookings) && res.bookings.length) booking = res.bookings[0];
       var ref = bookingRef(booking) || (res.booking_ref || res.bookingRef || res.reference || '');
       var qr = qrOf(booking) || qrOf(res);
 
@@ -880,11 +889,18 @@
   }
 
   function releaseHold() {
+    var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
+    var releaseToken = hold ? (hold.tokens.length ? hold.tokens[0] : null)
+      : (claim ? (claim.holdToken || claim.token) : null);
     hold = null;
+    claim = null;
     selectedSeats = [];
     stopCountdown();
-    var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
     if (evId) refreshSeatMap(evId, eventCache[evId]);
+    if (releaseToken && evId) {
+      api('/api/events/' + evId + '/hold/' + encodeURIComponent(releaseToken), { method: 'DELETE' })
+        .catch(function () { /* seat will be released automatically when the hold expires */ });
+    }
     toast('Hold released. Seats will be available again for others shortly.', 'info');
   }
 
@@ -949,6 +965,9 @@
           return typeof s === 'string' ? s : seatLabel(String(s.row) + ':' + String(s.col));
         }).join(', ');
         else if (seats) seatText = String(seats);
+        if (!seatText && b.seat_row && b.seat_col) {
+          seatText = seatLabel(String(b.seat_row) + ':' + String(b.seat_col));
+        }
 
         return (
           '<div class="card booking-item" data-ref="' + esc(ref) + '" data-event-id="' + esc(evId || '') + '">' +
@@ -995,6 +1014,9 @@
         seatText = data.seats.map(function (s) {
           return typeof s === 'string' ? s : seatLabel(String(s.row) + ':' + String(s.col));
         }).join(', ');
+      }
+      if (!seatText && booking.seat_row && booking.seat_col) {
+        seatText = seatLabel(String(booking.seat_row) + ':' + String(booking.seat_col));
       }
       body.innerHTML =
         (data.qr
@@ -1049,7 +1071,7 @@
         '<div class="field"><label>Venue</label><select name="venueId" id="venueSelect" required></select></div>' +
         '<div class="field"><label>Title</label><input name="title" type="text" required></div>' +
         '<div class="field"><label>Type</label><select name="type" required>' +
-          '<option value="Movie">Movie</option><option value="Concert">Concert</option></select></div>' +
+          '<option value="movie">Movie</option><option value="concert">Concert</option></select></div>' +
         '<div class="field"><label>Date</label><input name="date" type="date" required></div>' +
         '<div class="field"><label>Time</label><input name="time" type="time" required></div>' +
         '<div class="field full"><label>Description</label><textarea name="description" rows="3"></textarea></div>' +
@@ -1104,8 +1126,12 @@
       return;
     }
     select.innerHTML = venues.map(function (v) {
+      var cats = v.categories || v.category || [];
+      if (Array.isArray(cats)) cats = cats.map(function (c) {
+        return (c && c.category_name) || (c && c.name) || c;
+      });
       return '<option value="' + esc(eventIdOf(v)) + '" data-categories="' +
-        esc(JSON.stringify(v.categories || v.category || [])) + '">' +
+        esc(JSON.stringify(cats)) + '">' +
         esc(v.name || 'Venue') + (v.address ? ' - ' + esc(v.address) : '') + '</option>';
     }).join('');
     if (venues.length) renderPriceFields(select.options[select.selectedIndex]);
@@ -1117,6 +1143,7 @@
     var cats = [];
     try { cats = JSON.parse(optionEl.dataset.categories || '[]'); } catch (e) { cats = []; }
     if (!cats.length) cats = ['Standard'];
+    cats = cats.map(function (c) { return (c && c.category_name) || (c && c.name) || c; });
     box.innerHTML =
       '<div class="full"><label>Per-category pricing</label></div>' +
       cats.map(function (c) {
@@ -1128,7 +1155,7 @@
   async function createEvent(form) {
     var venueId = form.venueId.value;
     var title = form.title.value.trim();
-    var type = form.type.value;
+    var type = (form.type.value || '').toLowerCase();
     var date = form.date.value;
     var time = form.time.value;
     if (!venueId || !title || !date || !time) return toast('Please fill in venue, title, date and time.', 'error');
@@ -1137,9 +1164,10 @@
     $$('input[name^="price_"]', form).forEach(function (input) {
       if (input.value !== '') pricing[input.name.replace('price_', '')] = Number(input.value);
     });
+    if (!Object.keys(pricing).length) return toast('Enter at least one category price.', 'error');
 
     var body = {
-      venueId: venueId,
+      venue_id: venueId,
       title: title,
       type: type,
       date: date,
@@ -1167,7 +1195,10 @@
     try {
       var res = await api('/api/organiser/events/' + eventId + '/revenue');
       var cats = res.categories || res.revenueByCategory || res.byCategory || res.breakdown || [];
-      var total = res.total || res.totalRevenue || res.revenue || 0;
+      var totalRes = res.total || res.totalRevenue || res.revenue;
+      var total = (totalRes && typeof totalRes === 'object')
+        ? (totalRes.revenue || totalRes.amount || 0)
+        : (totalRes || 0);
 
       var catRows = '';
       if (Array.isArray(cats)) {
@@ -1236,7 +1267,9 @@
     } else {
       html += '<div class="list-stack">' + venues.map(function (v) {
         var cats = v.categories || v.category || [];
-        var catText = Array.isArray(cats) ? cats.join(', ') : String(cats || '');
+        var catText = Array.isArray(cats)
+          ? cats.map(function (c) { return (c && c.category_name) || (c && c.name) || c; }).join(', ')
+          : String(cats || '');
         return (
           '<div class="card" data-venue-id="' + esc(eventIdOf(v)) + '">' +
             '<div class="b-head">' +
@@ -1308,7 +1341,7 @@
       var res = await api('/api/waitlist/offer/' + encodeURIComponent(tokenParam));
       var offer = res.offer || res;
       var eventId = offer.eventId || offer.event_id || (offer.event && (offer.event.id || offer.event._id));
-      var seats = offer.seats || offer.seatIds || [];
+      var seats = offer.seats || offer.seatIds || (offer.seat ? [offer.seat] : []);
       var expiresAt = new Date(offer.expiresAt || offer.expires_at || offer.expiry || offer.ttl).getTime();
       if (isNaN(expiresAt)) expiresAt = Date.now() + 300000;
 
@@ -1316,6 +1349,7 @@
 
       claim = {
         token: tokenParam,
+        holdToken: offer.holdToken || tokenParam,
         eventId: String(eventId),
         seatIds: seats.map(function (s) {
           if (typeof s === 'string') return s;
@@ -1462,7 +1496,7 @@
     } else if (action === 'apply-filters') {
       e.preventDefault();
       var p = new URLSearchParams();
-      if (form.type.value) p.set('type', form.type.value);
+      if (form.type.value) p.set('type', form.type.value.toLowerCase());
       if (form.q.value.trim()) p.set('q', form.q.value.trim());
       if (form.date.value) p.set('date', form.date.value);
       var qs = p.toString();

@@ -105,6 +105,15 @@ function attachPricing(eventRow) {
 }
 
 // --- Public: browse events with optional filters, view event detail + seat map ---
+router.get('/api/venues', (req, res) => {
+  const venues = db.prepare('SELECT * FROM venues ORDER BY id').all();
+  const catStmt = db.prepare(
+    'SELECT id, category_name, description, row_count FROM venue_categories WHERE venue_id = ? ORDER BY id'
+  );
+  for (const v of venues) v.categories = catStmt.all(v.id);
+  res.json(venues);
+});
+
 router.get('/api/events', (req, res) => {
   const { type, q, date } = req.query;
   const clauses = [];
