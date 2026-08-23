@@ -563,13 +563,15 @@ a:hover {
 }
 
 .seat-grid {
-  display: inline-grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   user-select: none;
 }
 
 .seat-row {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
 }

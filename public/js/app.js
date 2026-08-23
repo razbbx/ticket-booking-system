@@ -680,7 +680,7 @@
     var totalCols = (maxCol - minCol + 1);
     var soldOut = availableCount === 0;
 
-    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid" style="grid-template-columns: repeat(' + (totalCols + 1) + ', min-content);">';
+    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid">';
     for (var r = minRow; r <= maxRow; r++) {
       var rowIdx = r - minRow;
       var rowLetter = String.fromCharCode(65 + rowIdx);
