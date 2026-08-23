@@ -19,6 +19,9 @@ export async function sendEmail(env, { to, subject, text, html }) {
     });
     if (!res.ok) {
       console.error('[EMAIL][resend]', res.status, await res.text().catch(() => ''));
+    } else {
+      const body = await res.json().catch(() => ({}));
+      console.log('[EMAIL][resend] sent to', to, '| id:', body.id || 'unknown');
     }
     return;
   }

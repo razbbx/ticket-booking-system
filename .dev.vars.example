@@ -9,4 +9,6 @@ SECRET=replace-with-random-hex
 RESEND_API_KEY=
 
 # Optional: sender used for Resend emails.
-RESEND_FROM=Ticket Booking <tickets@yourdomain.com>
+# If omitted, defaults to "Ticket Booking <onboarding@resend.dev>" (Resend sandbox sender,
+# which only delivers to your account's verified email until you add a domain).
+RESEND_FROM=
