@@ -615,11 +615,16 @@
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
   }
 
+  var currentMinRow = 0;
+  var currentMinCol = 0;
+
   function seatLabel(key) {
     var p = key.split(':');
-    var rowIdx = Number(p[0]);
-    var rowLetter = String.fromCharCode(65 + rowIdx);
-    var colNum = Number(p[1]) + 1;
+    var r = Number(p[0]);
+    var c = Number(p[1]);
+    var rowIdx = r >= currentMinRow ? (r - currentMinRow) : r;
+    var rowLetter = String.fromCharCode(65 + Math.max(0, rowIdx));
+    var colNum = (c >= currentMinCol ? (c - currentMinCol) : c) + 1;
     return rowLetter + colNum;
   }
 
@@ -638,7 +643,8 @@
       return;
     }
 
-    var maxRow = 0, maxCol = 0;
+    var minRow = Infinity, maxRow = -Infinity;
+    var minCol = Infinity, maxCol = -Infinity;
     seatIdMap = {};
     var seatsByKey = {};
     var categoryCounts = {};
@@ -647,7 +653,9 @@
     seats.forEach(function (s) {
       var r = Number(s.seat_row !== undefined ? s.seat_row : s.row);
       var c = Number(s.seat_col !== undefined ? s.seat_col : s.col);
+      if (r < minRow) minRow = r;
       if (r > maxRow) maxRow = r;
+      if (c < minCol) minCol = c;
       if (c > maxCol) maxCol = c;
       var key = seatKey(r, c);
       seatsByKey[key] = s;
@@ -664,13 +672,20 @@
       }
     });
 
+    if (minRow === Infinity) minRow = 0;
+    if (minCol === Infinity) minCol = 0;
+    currentMinRow = minRow;
+    currentMinCol = minCol;
+
+    var totalCols = (maxCol - minCol + 1);
     var soldOut = availableCount === 0;
 
-    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid" style="grid-template-columns: repeat(' + (maxCol + 2) + ', min-content);">';
-    for (var r = 0; r <= maxRow; r++) {
-      var rowLetter = String.fromCharCode(65 + r);
+    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid" style="grid-template-columns: repeat(' + (totalCols + 1) + ', min-content);">';
+    for (var r = minRow; r <= maxRow; r++) {
+      var rowIdx = r - minRow;
+      var rowLetter = String.fromCharCode(65 + rowIdx);
       gridHtml += '<div class="seat-row">' + '<div class="row-label">' + rowLetter + '</div>';
-      for (var c = 0; c <= maxCol; c++) {
+      for (var c = minCol; c <= maxCol; c++) {
         var key = seatKey(r, c);
         var s = seatsByKey[key];
         if (!s) {
@@ -678,6 +693,7 @@
           continue;
         }
 
+        var colDisplay = c - minCol + 1;
         var status = s.status || 'available';
         var isSelected = selectedSeats.indexOf(key) >= 0;
         var isHeldByMe = hold && Array.isArray(hold.seatIds) && hold.seatIds.indexOf(key) >= 0;
@@ -692,8 +708,8 @@
         else if (status === 'booked') cls += ' booked';
         else cls += ' available';
 
-        gridHtml += '<div class="' + cls + '" data-action="toggle-seat" data-key="' + key + '" title="Row ' + rowLetter + ', Seat ' + (c + 1) + ' (' + esc(cat) + ')">' +
-          (isSelected ? '✓' : (c + 1)) +
+        gridHtml += '<div class="' + cls + '" data-action="toggle-seat" data-key="' + key + '" title="Row ' + rowLetter + ', Seat ' + colDisplay + ' (' + esc(cat) + ')">' +
+          (isSelected ? '✓' : colDisplay) +
           '</div>';
       }
       gridHtml += '</div>';
