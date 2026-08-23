@@ -1280,27 +1280,29 @@ body.no-scroll-mode .container {
 }
 
 /* ============================================================
-   Hand-Drawn Sketch Inspired Stadium Arena (Zones A-F)
+   Free-Form Curved Amphitheater Concert Arena (Spread Out Blocks A-F)
    ============================================================ */
 .custom-arena-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 820px;
-  padding: 24px 16px;
-  background: rgba(15, 23, 42, 0.92);
+  max-width: 860px;
+  padding: 32px 20px;
+  background: radial-gradient(circle at 50% 10%, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
   border: var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  border-radius: 50% 50% 36px 36px / 15% 15% 36px 36px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
   margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
 }
 
 .arena-stage-curve {
-  width: 70%;
-  height: 48px;
+  width: 60%;
+  height: 52px;
   background: linear-gradient(135deg, #f59e0b 0%, #ec4899 100%);
-  border-radius: 40px 40px 12px 12px;
+  border-radius: 50px 50px 16px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1308,15 +1310,15 @@ body.no-scroll-mode .container {
   font-weight: 900;
   letter-spacing: 4px;
   color: #ffffff;
-  box-shadow: 0 0 35px rgba(245, 158, 11, 0.6);
-  margin-bottom: 28px;
+  box-shadow: 0 0 40px rgba(245, 158, 11, 0.7);
+  margin-bottom: 36px;
   text-transform: uppercase;
 }
 
 .arena-sketch-layout {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   width: 100%;
 }
 
@@ -1324,12 +1326,14 @@ body.no-scroll-mode .container {
   display: flex;
   gap: 16px;
   width: 100%;
+  justify-content: center;
+  align-items: center;
 }
 
 .sketch-block {
   flex: 1;
-  min-height: 110px;
-  border-radius: var(--radius-md);
+  min-height: 115px;
+  border-radius: 28px 28px 18px 18px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1337,19 +1341,21 @@ body.no-scroll-mode .container {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
-  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border: 2px dashed rgba(255, 255, 255, 0.25);
   user-select: none;
   text-align: center;
+  position: relative;
 }
 
 .sketch-block:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
-  filter: brightness(1.2);
+  transform: translateY(-6px) scale(1.05) !important;
+  box-shadow: 0 16px 35px rgba(0, 0, 0, 0.7);
+  filter: brightness(1.25);
+  z-index: 10;
 }
 
 .block-title {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 900;
   letter-spacing: 1px;
   color: #ffffff;
@@ -1358,45 +1364,60 @@ body.no-scroll-mode .container {
 .block-sub {
   font-size: 11px;
   font-weight: 700;
-  opacity: 0.85;
+  opacity: 0.9;
   margin-top: 4px;
 }
 
+/* Organic Curved Angles & Radii for Spread-Out Free-Form Feel */
 .block-a {
-  background: rgba(245, 158, 11, 0.25);
-  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.28);
+  border-color: rgba(245, 158, 11, 0.7);
   color: #fbbf24;
+  border-radius: 40px 40px 16px 16px;
+  flex: 1.2;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
 }
 
 .block-b {
-  background: rgba(236, 72, 153, 0.25);
-  border-color: rgba(236, 72, 153, 0.6);
+  background: rgba(236, 72, 153, 0.28);
+  border-color: rgba(236, 72, 153, 0.7);
   color: #f472b6;
+  border-radius: 44px 18px 24px 36px;
+  transform: rotate(-6deg) translateY(-8px);
 }
 
 .block-c {
-  background: rgba(168, 85, 247, 0.25);
-  border-color: rgba(168, 85, 247, 0.6);
+  background: rgba(168, 85, 247, 0.28);
+  border-color: rgba(168, 85, 247, 0.7);
   color: #c084fc;
+  border-radius: 18px 44px 36px 24px;
+  transform: rotate(6deg) translateY(-8px);
 }
 
 .block-d {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: rgba(16, 185, 129, 0.6);
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.7);
   color: #6ee7b7;
-  flex: 1.4;
-}
-
-.block-e {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.6);
-  color: #a5b4fc;
+  border-radius: 36px 36px 48px 48px;
+  flex: 1.5;
+  min-height: 130px;
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.2);
 }
 
 .block-f {
-  background: rgba(100, 116, 139, 0.25);
-  border-color: rgba(100, 116, 139, 0.6);
+  background: rgba(100, 116, 139, 0.28);
+  border-color: rgba(100, 116, 139, 0.7);
   color: #cbd5e1;
+  border-radius: 32px 16px 36px 24px;
+  transform: rotate(-4deg);
+}
+
+.block-e {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.7);
+  color: #a5b4fc;
+  border-radius: 16px 32px 24px 36px;
+  transform: rotate(4deg);
 }
 .circular-stadium-container {
   display: flex;
