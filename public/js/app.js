@@ -669,6 +669,8 @@
     isDragging = false;
   });
 
+  var isFirstSeatClick = true;
+
   /* ============================================================
    * Seat map + booking flow
    * ============================================================ */
@@ -676,6 +678,7 @@
     setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading seat map...</p></div>');
     hold = null;
     selectedSeats = [];
+    isFirstSeatClick = true;
 
     var query = getQuery();
     if (query.claim && claim && claim.token === query.claim) {
@@ -697,9 +700,21 @@
     var isMovie = (event.type || '').toLowerCase() === 'movie';
     var badgeCls = isMovie ? 'badge-movie' : 'badge-concert';
 
-    var requestedSeatCount = 2;
-
     var html = '<div id="eventView" class="event-view-no-scroll" data-event-id="' + esc(eventId) + '">' +
+      '<div id="qtyModal" class="modal-overlay">' +
+        '<div class="modal-card">' +
+          '<h2 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">How many tickets?</h2>' +
+          '<p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Select your ticket count to reserve seats on selection.</p>' +
+          '<div class="qty-options-grid">' +
+            '<button type="button" class="qty-select-btn" data-action="confirm-qty" data-qty="1">1 Ticket</button>' +
+            '<button type="button" class="qty-select-btn active" data-action="confirm-qty" data-qty="2">2 Tickets</button>' +
+            '<button type="button" class="qty-select-btn" data-action="confirm-qty" data-qty="3">3 Tickets</button>' +
+            '<button type="button" class="qty-select-btn" data-action="confirm-qty" data-qty="4">4 Tickets</button>' +
+            '<button type="button" class="qty-select-btn" data-action="confirm-qty" data-qty="5">5 Tickets</button>' +
+            '<button type="button" class="qty-select-btn" data-action="confirm-qty" data-qty="6">6 Tickets</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
       '<div class="event-header-compact">' +
         '<div>' +
           '<div style="display:flex; gap: 8px; align-items: center; margin-bottom: 4px;">' +
@@ -710,15 +725,6 @@
           '<h1 style="font-size: 20px; font-weight: 800; line-height: 1.2;">' + esc(event.title || 'Event') + '</h1>' +
         '</div>' +
         '<div style="display:flex; align-items:center; gap:16px;">' +
-          '<div class="ticket-qty-picker">' +
-            '<span class="ticket-qty-label">Tickets:</span>' +
-            '<button type="button" class="qty-btn' + (requestedSeatCount === 1 ? ' active' : '') + '" data-action="set-qty" data-qty="1">1</button>' +
-            '<button type="button" class="qty-btn' + (requestedSeatCount === 2 ? ' active' : '') + '" data-action="set-qty" data-qty="2">2</button>' +
-            '<button type="button" class="qty-btn' + (requestedSeatCount === 3 ? ' active' : '') + '" data-action="set-qty" data-qty="3">3</button>' +
-            '<button type="button" class="qty-btn' + (requestedSeatCount === 4 ? ' active' : '') + '" data-action="set-qty" data-qty="4">4</button>' +
-            '<button type="button" class="qty-btn' + (requestedSeatCount === 5 ? ' active' : '') + '" data-action="set-qty" data-qty="5">5</button>' +
-            '<button type="button" class="qty-btn' + (requestedSeatCount === 6 ? ' active' : '') + '" data-action="set-qty" data-qty="6">6</button>' +
-          '</div>' +
           '<span style="color: var(--text-muted); font-size: 13px; font-weight: 600;">📅 ' + esc(formatDateTime(event.date, event.time)) + '</span>' +
         '</div>' +
       '</div>' +
@@ -830,6 +836,54 @@
     var soldOut = availableCount === 0;
 
     var isMovie = event && (event.type || '').toLowerCase() === 'movie';
+    var isConcert = event && (event.type || '').toLowerCase() === 'concert';
+
+    if (isConcert) {
+      // Concert Arena 230-degree Stadium Group Layout (NO SEAT GRID)
+      var gridHtml = '<div class="stadium-arc-container">' +
+        '<div class="stage-central">⚡ MAIN STAGE & PERFORMANCE ARENA ⚡</div>' +
+        '<div class="arc-zones-wrapper">';
+
+      var priceMap = pricingOf(event);
+      var cats = Object.keys(categoryCounts);
+      if (!cats.length) cats = ['Standard'];
+
+      cats.forEach(function (cat) {
+        var info = categoryCounts[cat] || { available: 0, total: 1000 };
+        var isVip = cat.toLowerCase().indexOf('premium') >= 0 || cat.toLowerCase().indexOf('vip') >= 0;
+        var pr = priceMap[cat] || (isVip ? 1500 : 800);
+        var zoneSelectedCount = selectedSeats.filter(function (k) {
+          var sObj = seatsByKeyInMap[k];
+          return sObj && (sObj.category_name || sObj.category || 'Standard') === cat;
+        }).length;
+        var isZoneSelected = zoneSelectedCount > 0;
+
+        gridHtml += '<div class="stadium-zone-card' + (isZoneSelected ? ' selected-zone' : '') + '" data-action="select-zone" data-category="' + esc(cat) + '">' +
+          '<div class="zone-header">' +
+            '<span class="zone-title">' + esc(cat) + ' Group Area</span>' +
+            '<span class="zone-badge ' + (isVip ? 'badge-vip' : 'badge-general') + '">' + (isVip ? 'Front VIP Arc (0°-180°)' : 'Field Standing (180°-230°)') + '</span>' +
+          '</div>' +
+          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Closest premium group area facing main stage' : 'General field standing area with full stage view') + '</div>' +
+          '<div class="zone-meta">' +
+            '<span class="zone-avail">🟢 ' + info.available + ' Tickets Available</span>' +
+            '<span class="zone-price">' + money(pr) + ' / ticket</span>' +
+          '</div>' +
+          '<button type="button" class="btn ' + (isVip ? 'btn-primary' : 'btn-secondary') + ' btn-sm" style="margin-top:6px; width:100%; font-weight:700;">' +
+            (isZoneSelected ? '✓ Selected (' + zoneSelectedCount + ' Tickets)' : 'Select ' + requestedSeatCount + ' Tickets in ' + esc(cat)) +
+          '</button>' +
+        '</div>';
+      });
+
+      gridHtml += '</div></div>';
+      region.innerHTML = gridHtml;
+      if (!isPoll) autoFitSeatMap();
+
+      if (!document.querySelector('#bookingRegion .success-box')) {
+        renderBookingPanel(event, eventId, seats, availableCount, soldOut);
+      }
+      return;
+    }
+
     var isCompact = totalCols > 20 || totalRows > 20;
 
     // Movie layout aisle split ratios:
@@ -1006,17 +1060,13 @@
       var params = new URLSearchParams(window.location.hash.split('?')[1] || '');
       if (t) params.set('type', t); else params.delete('type');
       navigate('/events' + (params.toString() ? '?' + params.toString() : ''));
-    } else if (action === 'set-qty') {
+    } else if (action === 'confirm-qty') {
       requestedSeatCount = Number(btn.dataset.qty) || 2;
-      $$('.qty-btn').forEach(function (b) {
-        if (Number(b.dataset.qty) === requestedSeatCount) b.classList.add('active');
-        else b.classList.remove('active');
-      });
-      if (selectedSeats.length > requestedSeatCount) {
-        selectedSeats = selectedSeats.slice(0, requestedSeatCount);
-      }
+      isFirstSeatClick = true;
+      var modal = $('#qtyModal');
+      if (modal) modal.remove();
       var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
-      if (evId) refreshSeatMap(evId, eventCache[evId], true);
+      if (evId) refreshSeatMap(evId, eventCache[evId]);
     } else if (action === 'toggle-seat') {
       var key = btn.dataset.key;
       if (!key) return;
@@ -1024,32 +1074,41 @@
       if (idx >= 0) {
         selectedSeats.splice(idx, 1);
       } else {
-        if (selectedSeats.length >= requestedSeatCount) {
+        if (isFirstSeatClick) {
+          // FIRST CLICK ONLY: 1-click contiguous seat auto-fill
+          isFirstSeatClick = false;
           selectedSeats = [];
-        }
 
-        var parts = key.split(':');
-        var startRow = Number(parts[0]);
-        var startCol = Number(parts[1]);
+          var parts = key.split(':');
+          var startRow = Number(parts[0]);
+          var startCol = Number(parts[1]);
 
-        var seatsToAdd = [];
-        for (var c = startCol; c <= (maxColInMap || 100); c++) {
-          var k = seatKey(startRow, c);
-          var sObj = seatsByKeyInMap[k];
-          if (sObj && (sObj.status || 'available') === 'available') {
-            seatsToAdd.push(k);
-            if (seatsToAdd.length === (requestedSeatCount - selectedSeats.length)) break;
-          } else {
-            break;
+          var seatsToAdd = [];
+          for (var c = startCol; c <= (maxColInMap || 100); c++) {
+            var k = seatKey(startRow, c);
+            var sObj = seatsByKeyInMap[k];
+            if (sObj && (sObj.status || 'available') === 'available') {
+              seatsToAdd.push(k);
+              if (seatsToAdd.length === requestedSeatCount) break;
+            } else {
+              break;
+            }
           }
-        }
-        if (!seatsToAdd.length) seatsToAdd.push(key);
+          if (!seatsToAdd.length) seatsToAdd.push(key);
 
-        seatsToAdd.forEach(function (k) {
-          if (selectedSeats.indexOf(k) < 0 && selectedSeats.length < MAX_SELECTABLE) {
-            selectedSeats.push(k);
+          seatsToAdd.forEach(function (k) {
+            if (selectedSeats.indexOf(k) < 0 && selectedSeats.length < MAX_SELECTABLE) {
+              selectedSeats.push(k);
+            }
+          });
+        } else {
+          // SUBSEQUENT CLICKS: Toggle individual seat
+          if (selectedSeats.length >= MAX_SELECTABLE) {
+            toast('You can select at most ' + MAX_SELECTABLE + ' seats.', 'warning');
+            return;
           }
-        });
+          selectedSeats.push(key);
+        }
       }
 
       var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
