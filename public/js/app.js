@@ -25,6 +25,7 @@
 
   var currentView = null;
   var eventCache = {};
+  var bookingComplete = false;   // set after a booking/waitlist success; blocks panel re-renders
 
   /* ============================================================
    * Small helpers
@@ -304,6 +305,7 @@
     renderNav();
     stopPolling();
     stopCountdown();
+    bookingComplete = false;
     var route = routeFor();
 
     switch (route.name) {
@@ -683,12 +685,19 @@
     gridHtml += '<div class="mb"><strong>' + availableCount + '</strong> seats available</div>';
 
     region.innerHTML = gridHtml;
-    renderBookingPanel(event, eventId, seats, availableCount, soldOut);
+    // Never clobber a booking-confirmation success box with the idle booking panel
+    // (an in-flight poll may still be running even after stopPolling()).
+    if (!document.querySelector('#bookingRegion .success-box')) {
+      renderBookingPanel(event, eventId, seats, availableCount, soldOut);
+    }
   }
 
   function renderBookingPanel(event, eventId, seats, availableCount, soldOut) {
     var region = $('#bookingRegion');
     if (!region) return;
+    // After a successful booking/waitlist join the success box is final:
+    // don't let seat-map polling or refreshes replace it.
+    if (bookingComplete) return;
 
     var hasHold = hold && String(hold.eventId) === String(eventId);
     var hasClaim = claim && String(claim.eventId) === String(eventId);
@@ -846,6 +855,7 @@
 
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
+    bookingComplete = true;   // prevent any in-flight polls from clobbering the booking region
     try {
       var payload = { customerName: name, customerEmail: email };
       if (hold && String(hold.eventId) === String(eventId)) {
@@ -865,7 +875,8 @@
       selectedSeats = [];
       claim = null;
       stopCountdown();
-      await refreshSeatMap(eventId, eventCache[eventId]);
+      stopPolling();
+      bookingComplete = true;
 
       $('#bookingRegion').innerHTML =
         '<div class="card success-box">' +
@@ -915,6 +926,8 @@
         method: 'POST',
         body: { category: category }
       });
+      stopPolling();
+      bookingComplete = true;
       toast('You are on the waitlist for ' + category + '. We will email you if a seat opens up.', 'success');
       $('#bookingRegion').innerHTML =
         '<div class="card success-box">' +
