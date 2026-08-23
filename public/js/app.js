@@ -228,6 +228,7 @@
 
     if (first === 'event' && parts[1]) return { name: 'event', id: parts[1] };
     if (first === 'revenue' && parts[1]) return { name: 'revenue', id: parts[1] };
+    if (first === 'events') return { name: 'events' };
     if (first === 'claim') return { name: 'claim' };
     if (first === 'login') return { name: 'login' };
     if (first === 'register') return { name: 'register' };
