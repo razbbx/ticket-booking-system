@@ -668,10 +668,18 @@ a:hover {
 }
 
 .seat.held-by-me {
-  background: var(--amber-gradient);
-  color: #ffffff;
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.5);
-  animation: pulse-amber 2s infinite;
+  background: var(--amber-gradient) !important;
+  color: #ffffff !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.8) !important;
+  transform: scale(1.1) !important;
+  z-index: 8;
+  animation: pulse-amber 1.8s infinite ease-in-out !important;
+}
+
+@keyframes pulse-amber {
+  0%, 100% { transform: scale(1.08); box-shadow: 0 0 14px rgba(245, 158, 11, 0.6); }
+  50% { transform: scale(1.18); box-shadow: 0 0 26px rgba(245, 158, 11, 0.95); }
 }
 
 .seat.booked {

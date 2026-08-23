@@ -962,21 +962,21 @@
           gridHtml += '<div class="seat" style="visibility:hidden;"></div>';
         } else {
           var status = s.status || 'available';
+          var isHeldByMe = hold && String(hold.eventId) === String(eventId) && Array.isArray(hold.seatIds) && hold.seatIds.indexOf(key) >= 0;
           var isSelected = selectedSeats.indexOf(key) >= 0;
-          var isHeldByMe = hold && Array.isArray(hold.seatIds) && hold.seatIds.indexOf(key) >= 0;
 
           var cls = 'seat';
           var cat = s.category_name || s.category || 'Standard';
           if (cat.toLowerCase().indexOf('premium') >= 0) cls += ' category-premium';
 
-          if (isSelected) cls += ' selected';
-          else if (isHeldByMe) cls += ' held-by-me';
+          if (isHeldByMe) cls += ' held-by-me';
+          else if (isSelected) cls += ' selected';
           else if (status === 'held') cls += ' held';
           else if (status === 'booked') cls += ' booked';
           else cls += ' available';
 
           gridHtml += '<div class="' + cls + '" data-action="toggle-seat" data-key="' + key + '" title="Row ' + rowLetter + ', Seat ' + colDisplay + ' (' + esc(cat) + ')">' +
-            (isSelected ? '✓' : colDisplay) +
+            (isHeldByMe ? '🔒' : (isSelected ? '✓' : colDisplay)) +
             '</div>';
         }
 
@@ -1029,8 +1029,8 @@
       '</div>';
     } else if (hasHold) {
       html += '<div>' +
-        '<span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase; margin-right:12px;">Hold Expires: <strong id="countdownTimer" style="font-size:15px; color:var(--text-main);">10:00</strong></span>' +
-        '<span style="font-size:13px; color:var(--text-muted);">Seats: <strong style="color:var(--accent-indigo);">' + selectedSeats.map(seatLabel).join(', ') + '</strong></span>' +
+        '<span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase; margin-right:12px;">Hold Expires: <strong id="countdownTimer" style="font-size:16px; font-weight:900; color:#fbbf24;">10:00</strong></span>' +
+        '<span style="font-size:13px; color:var(--text-muted);">Held Seats: <strong style="color:#fbbf24;">' + hold.seatIds.map(seatLabel).join(', ') + '</strong></span>' +
       '</div>';
       startHoldCountdown(hold.expiresAt);
     } else if (!soldOut) {
@@ -1072,32 +1072,44 @@
     region.innerHTML = html;
   }
 
+  var currentHoldExpiryTime = 0;
+
   function startHoldCountdown(expiresAt) {
-    var timerEl = $('#countdownTimer');
-    if (!timerEl || !expiresAt) return;
+    if (!expiresAt) return;
 
     var expTime = typeof expiresAt === 'number' ? expiresAt : Date.parse(expiresAt);
     if (isNaN(expTime)) expTime = Date.now() + 600000;
 
+    if (countdownTimer && currentHoldExpiryTime === expTime) {
+      updateCountdownDisplay(expTime);
+      return;
+    }
+
+    currentHoldExpiryTime = expTime;
     stopCountdown();
 
     function update() {
-      var currentEl = $('#countdownTimer');
-      if (!currentEl) { stopCountdown(); return; }
-      var rem = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
-      var m = Math.floor(rem / 60);
-      var s = rem % 60;
-      currentEl.textContent = pad(m) + ':' + pad(s);
-      if (rem <= 0) {
-        stopCountdown();
-        hold = null;
-        selectedSeats = [];
-        toast('Hold expired. Seats released.', 'warning');
-        render();
-      }
+      updateCountdownDisplay(expTime);
     }
     update();
     countdownTimer = setInterval(update, 1000);
+  }
+
+  function updateCountdownDisplay(expTime) {
+    var timerEl = $('#countdownTimer');
+    if (!timerEl) return;
+    var rem = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
+    var m = Math.floor(rem / 60);
+    var s = rem % 60;
+    timerEl.textContent = pad(m) + ':' + pad(s);
+    if (rem <= 0) {
+      stopCountdown();
+      hold = null;
+      selectedSeats = [];
+      toast('Hold expired. Seats released.', 'warning');
+      var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
+      if (evId) refreshSeatMap(evId, eventCache[evId]);
+    }
   }
 
   /* ============================================================
