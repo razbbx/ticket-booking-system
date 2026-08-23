@@ -341,6 +341,12 @@
     bookingComplete = false;
     var route = routeFor();
 
+    if (route.name === 'event') {
+      document.body.classList.add('no-scroll-mode');
+    } else {
+      document.body.classList.remove('no-scroll-mode');
+    }
+
     switch (route.name) {
       case 'login': viewAuth('login'); break;
       case 'register': viewAuth('register'); break;
@@ -571,26 +577,26 @@
     var isMovie = (event.type || '').toLowerCase() === 'movie';
     var badgeCls = isMovie ? 'badge-movie' : 'badge-concert';
 
-    var html = '<div id="eventView" data-event-id="' + esc(eventId) + '">' +
-      '<div style="margin-bottom: 24px;">' +
-        '<a href="#/events" style="font-weight: 600; font-size: 14px;">&larr; Back to Events</a>' +
-      '</div>' +
-      '<div class="card" style="margin-bottom: 32px;">' +
-        '<div style="display:flex; gap: 12px; align-items: center; margin-bottom: 8px;">' +
-          '<span class="event-type-badge ' + badgeCls + '">' + (isMovie ? '🎬 Movie' : '🎸 Concert') + '</span>' +
-          '<span style="color: var(--text-muted); font-size: 14px;">📍 ' + esc((event.venue && (event.venue.name || event.venue)) || event.venue_name || 'Venue') + '</span>' +
-        '</div>' +
-        '<h1 style="font-size: 32px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 8px;">' + esc(event.title || 'Event') + '</h1>' +
-        '<p style="color: var(--text-muted); font-size: 15px;">📅 ' + esc(formatDateTime(event.date, event.time)) + '</p>' +
-      '</div>' +
-      '<div class="seatmap-container">' +
-        '<div class="card">' +
-          '<div class="screen-bar"><span class="screen-label">STAGE / SCREEN</span></div>' +
-          '<div id="seatMapRegion"></div>' +
-        '</div>' +
+    var html = '<div id="eventView" class="event-view-no-scroll" data-event-id="' + esc(eventId) + '">' +
+      '<div class="event-header-compact">' +
         '<div>' +
-          '<div id="bookingRegion"></div>' +
+          '<div style="display:flex; gap: 8px; align-items: center; margin-bottom: 4px;">' +
+            '<a href="#/events" style="font-weight: 700; font-size: 13px; margin-right: 8px;">&larr; Events</a>' +
+            '<span class="event-type-badge ' + badgeCls + '">' + (isMovie ? '🎬 Movie' : '🎸 Concert') + '</span>' +
+            '<span style="color: var(--text-muted); font-size: 13px;">📍 ' + esc((event.venue && (event.venue.name || event.venue)) || event.venue_name || 'Venue') + '</span>' +
+          '</div>' +
+          '<h1 style="font-size: 20px; font-weight: 800; line-height: 1.2;">' + esc(event.title || 'Event') + '</h1>' +
         '</div>' +
+        '<div style="text-align: right;">' +
+          '<span style="color: var(--text-muted); font-size: 13px; font-weight: 600;">📅 ' + esc(formatDateTime(event.date, event.time)) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="seat-map-viewport">' +
+        '<div class="screen-bar"><span class="screen-label">STAGE / SCREEN</span></div>' +
+        '<div id="seatMapRegion"></div>' +
+      '</div>' +
+      '<div class="event-booking-footer">' +
+        '<div id="bookingRegion"></div>' +
       '</div>' +
     '</div>';
     setView(html);
