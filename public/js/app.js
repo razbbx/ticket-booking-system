@@ -860,31 +860,44 @@
     var isConcert = event && (event.type || '').toLowerCase() === 'concert';
 
     if (isConcert) {
-      // Circular 360-Degree Stadium Arena Layout (matching user's attached stadium image)
-      var gridHtml = '<div class="circular-stadium-container">' +
-        '<div class="circular-stadium-wheel">' +
-          '<div class="stadium-center-field">⚡ MAIN STAGE & PITCH ⚡</div>' +
-          '<div class="inner-lounge-ring">' +
-            '<div class="lounge-sector sec-red" style="top: 10px; left: 50%; transform: translateX(-50%);" data-action="select-zone" data-category="Premium" title="Shane Warne VIP Gallery">Shane Warne VIP Gallery</div>' +
-            '<div class="lounge-sector sec-green" style="top: 60px; right: 20px;" data-action="select-zone" data-category="Premium" title="Jaisalmer Lounge West">Jaisalmer Lounge West</div>' +
-            '<div class="lounge-sector sec-blue" style="top: 130px; right: 10px;" data-action="select-zone" data-category="Premium" title="Jaipur Lounge">Jaipur Lounge</div>' +
-            '<div class="lounge-sector sec-grey" style="bottom: 60px; right: 20px;" data-action="select-zone" data-category="Premium" title="Jodhpur Lounge">Jodhpur Lounge</div>' +
-            '<div class="lounge-sector sec-purple" style="top: 130px; left: 10px;" data-action="select-zone" data-category="Premium" title="Luminous East Lawn">Luminous East Lawn</div>' +
+      // Clean Custom Arena Layout matching hand-drawn sketch (Zones A, B, C, D, E, F)
+      var priceMap = pricingOf(event);
+
+      var gridHtml = '<div class="custom-arena-container">' +
+        '<div class="arena-stage-curve">⚡ MAIN PERFORMANCE STAGE ⚡</div>' +
+        '<div class="arena-sketch-layout">' +
+          '<div class="arena-row row-front">' +
+            '<div class="sketch-block block-b" data-action="select-zone" data-category="Premium" title="ZONE B (VIP West)">' +
+              '<span class="block-title">ZONE B</span>' +
+              '<span class="block-sub">VIP West Lounge</span>' +
+            '</div>' +
+            '<div class="sketch-block block-a" data-action="select-zone" data-category="Premium" title="ZONE A (VIP Stage Pit)">' +
+              '<span class="block-title">ZONE A</span>' +
+              '<span class="block-sub">Front Stage VIP Pit</span>' +
+            '</div>' +
+            '<div class="sketch-block block-c" data-action="select-zone" data-category="Premium" title="ZONE C (VIP East)">' +
+              '<span class="block-title">ZONE C</span>' +
+              '<span class="block-sub">VIP East Lounge</span>' +
+            '</div>' +
           '</div>' +
-          '<div class="outer-stand-ring">' +
-            '<div class="stand-sector sec-orange" style="top: 15px; left: 25%; transform: translateX(-50%);" data-action="select-zone" data-category="Standard">Luminous South East Stand</div>' +
-            '<div class="stand-sector sec-purple" style="top: 15px; right: 25%; transform: translateX(50%);" data-action="select-zone" data-category="Standard">Jio South West Stand</div>' +
-            '<div class="stand-sector sec-blue" style="top: 180px; left: 5px;" data-action="select-zone" data-category="Standard">East Stand 1 & 2</div>' +
-            '<div class="stand-sector sec-green" style="top: 260px; left: 15px;" data-action="select-zone" data-category="Standard">Ubon Audio East Stand</div>' +
-            '<div class="stand-sector sec-purple" style="bottom: 30px; left: 25%; transform: translateX(-50%);" data-action="select-zone" data-category="Standard">Super Kings North East Stand</div>' +
-            '<div class="stand-sector sec-amber" style="bottom: 10px; left: 50%; transform: translateX(-50%);" data-action="select-zone" data-category="Standard">Sambhar Lounge & Rooftop</div>' +
-            '<div class="stand-sector sec-grey" style="bottom: 30px; right: 25%; transform: translateX(50%);" data-action="select-zone" data-category="Standard">BKT Tyres North West Stand</div>' +
-            '<div class="stand-sector sec-dark" style="top: 180px; right: 5px;" data-action="select-zone" data-category="Standard">Bikaner Rooftop Boxes</div>' +
+          '<div class="arena-row row-rear">' +
+            '<div class="sketch-block block-f" data-action="select-zone" data-category="Standard" title="ZONE F (West Stand)">' +
+              '<span class="block-title">ZONE F</span>' +
+              '<span class="block-sub">West Stand Tier</span>' +
+            '</div>' +
+            '<div class="sketch-block block-d" data-action="select-zone" data-category="Standard" title="ZONE D (Main Field)">' +
+              '<span class="block-title">ZONE D</span>' +
+              '<span class="block-sub">Main Field Arena</span>' +
+            '</div>' +
+            '<div class="sketch-block block-e" data-action="select-zone" data-category="Standard" title="ZONE E (East Stand)">' +
+              '<span class="block-title">ZONE E</span>' +
+              '<span class="block-sub">East Stand Tier</span>' +
+            '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="arc-zones-wrapper">';
+      '</div>' +
+      '<div class="arc-zones-wrapper">';
 
-      var priceMap = pricingOf(event);
       var cats = Object.keys(categoryCounts);
       if (!cats.length) cats = ['Standard'];
 
@@ -900,10 +913,10 @@
 
         gridHtml += '<div class="stadium-zone-card' + (isZoneSelected ? ' selected-zone' : '') + '" data-action="select-zone" data-category="' + esc(cat) + '">' +
           '<div class="zone-header">' +
-            '<span class="zone-title">' + esc(cat) + ' Category Area</span>' +
-            '<span class="zone-badge ' + (isVip ? 'badge-vip' : 'badge-general') + '">' + (isVip ? 'Inner VIP Lounges (Shane Warne / Jaisalmer / Jaipur)' : 'Outer Radial Stadium Stands') + '</span>' +
+            '<span class="zone-title">' + (isVip ? 'Zones A, B, C' : 'Zones D, E, F') + ' (' + esc(cat) + ')</span>' +
+            '<span class="zone-badge ' + (isVip ? 'badge-vip' : 'badge-general') + '">' + (isVip ? 'VIP Front Stage' : 'General Arena Field') + '</span>' +
           '</div>' +
-          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Inner circular lounge ring directly facing main performance pitch' : 'Outer 360° stadium stand sectors with full elevated view') + '</div>' +
+          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Includes Front VIP Pit (Zone A), West VIP (Zone B), and East VIP (Zone C)' : 'Includes Main Arena Field (Zone D), East Stand (Zone E), and West Stand (Zone F)') + '</div>' +
           '<div class="zone-meta">' +
             '<span class="zone-avail">🟢 ' + info.available + ' Tickets Available</span>' +
             '<span class="zone-price">' + money(pr) + ' / ticket</span>' +
@@ -914,7 +927,7 @@
         '</div>';
       });
 
-      gridHtml += '</div></div>';
+      gridHtml += '</div>';
       region.innerHTML = gridHtml;
       if (!isPoll) autoFitSeatMap();
 
