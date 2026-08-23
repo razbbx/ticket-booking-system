@@ -1,5 +1,5 @@
 import { createRouter } from './router.js';
-import { json, error, corsResponse } from './http.js';
+import { json, error, corsResponse, applyCors } from './http.js';
 import { HttpError } from './auth.js';
 import { runSweep } from './services/holds.js';
 import * as authRoutes from './routes/auth.js';
@@ -39,16 +39,16 @@ async function handleApi(request, env, ctx) {
 
   const c = { request, env, ctx, url, body, db: env.DB };
   const handler = router.handle(method, url, c);
-  if (!handler) return error(404, 'not found');
+  if (!handler) return applyCors(error(404, 'not found'), request);
 
   try {
     const res = await handler;
-    if (res instanceof Response) return res;
-    return error(500, 'handler returned a non-Response value');
+    if (res instanceof Response) return applyCors(res, request);
+    return applyCors(error(500, 'handler returned a non-Response value'), request);
   } catch (err) {
-    if (err instanceof HttpError) return error(err.status, err.message);
+    if (err instanceof HttpError) return applyCors(error(err.status, err.message), request);
     console.error('[API ERROR]', (err && err.stack) || err);
-    return error(500, 'internal server error');
+    return applyCors(error(500, 'internal server error'), request);
   }
 }
 
