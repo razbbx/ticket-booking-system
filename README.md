@@ -1,220 +1,170 @@
-# Ticket Booking System
+# 🎟️ Ticket Booking System — High-Demand Event Platform
 
-A full-stack ticket booking platform for movies and concerts featuring a visual seat map, time-limited seat holds that auto-release via TTL, a FIFO waitlist with automatic seat assignment, and QR-code tickets delivered by email.
+[![Live Application](https://img.shields.io/badge/Live_Demo-Cloudflare_Workers-f38020?style=for-the-badge&logo=cloudflare)](https://ticket-booking-system.fshare-ayush-demo.workers.dev)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://github.com/razbbx/ticket-booking-system)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-The backend runs on **Cloudflare Workers** with **D1** (Cloudflare's serverless SQLite) for storage, and the frontend is a dependency-free vanilla JS/HTML/CSS single-page app. The previous Express + better-sqlite3 backend has been replaced by a Workers + D1 implementation: routes are Workers handlers, the SQLite database lives in D1, auth is done with Web Crypto (HMAC-signed tokens) instead of JWT, and emails go out via Cloudflare Email Sending (or Resend) instead of SMTP.
+A production-grade, full-stack **Movie & Concert Ticket Booking Platform** built for high-demand events. Features an interactive **BookMyShow-style visual seat map**, concurrency-protected seat holds with configurable TTL, automated waitlist seat reallocation on cancellations, and instant QR code ticket delivery via email.
 
-## Features
+---
 
-### Admin
-- Manage venues, venue categories, and show/event setups
-- Full CRUD for venues and categories (create, update, delete)
-- Oversee bookings, waitlists, and seat availability across all events
+## 🌐 Live Application & Deployment Links
 
-### Organiser
-- Create and publish events (movies, concerts) with showtimes and venue mapping
-- Configure seat categories (e.g. Gold, Silver, Balcony) with per-category pricing
-- List own events and view per-event sales revenue reports
+- **Live Production URL**: [https://ticket-booking-system.fshare-ayush-demo.workers.dev](https://ticket-booking-system.fshare-ayush-demo.workers.dev)
+- **GitHub Repository (`main` branch)**: [https://github.com/razbbx/ticket-booking-system](https://github.com/razbbx/ticket-booking-system)
 
-### Customer
-- Browse events and pick a showtime
-- Visual, clickable seat map with availability states (free / held / sold)
-- Hold seats with a TTL (default 10 minutes) — auto-released if not confirmed
-- Join a waitlist when a seat is taken and get auto-assigned when one frees up
-- Accept or decline time-limited seat offers (next-in-line promotion)
-- Receive a QR-coded e-ticket by email after confirming booking
+---
 
-## Tech Stack
+## 🌟 Key Features & Highlights
 
-| Layer     | Technology                                              |
-| --------- | ------------------------------------------------------- |
-| Backend   | Cloudflare Workers (JavaScript)                         |
-| Database  | D1 (Cloudflare's serverless SQLite, ACID)               |
-| Frontend  | Vanilla JS / HTML / CSS (no framework)                  |
-| Auth      | Web Crypto (HMAC-SHA256 signed tokens)                  |
-| Tickets   | qrcode (QR code generation, embedded in email)          |
-| Email     | Cloudflare Email Sending (primary) / Resend (optional)  |
+### 🎭 Visual Seat Map & UI Excellence
+- **BookMyShow Viewport Architecture**: Fixed 100vh no-scroll application shell with pinned header and sleek 50px bottom checkout toolbar.
+- **60FPS 3D Zoom & Drag-Pan Engine**: Hardware-accelerated smooth canvas zooming with auto-fit screen calculation for large venues (up to 2,400 seats).
+- **Realistic Aisle & Section Layouts**: Movies feature `25% : 50% : 25%` horizontal aisle gaps and `20% : 60% : 20%` vertical walkways.
+- **Real-Time Seat Status**: Color-coded seat states (Available, Selected, Held by You, Booked).
 
-> **Architecture change:** the app was migrated from a single Express + better-sqlite3 process to Cloudflare Workers + D1. Workers is stateless and edge-distributed; D1 persists all data and provides the serialised single-writer SQLite semantics that guarantee atomic seat mutations.
+### 🔒 Concurrency Control & Seat Hold TTL
+- **Atomic SQL Concurrency Protection**: Multi-user race condition protection using conditional atomic database updates (`UPDATE ... WHERE status = 'available'`). Prevents double-booking under extreme load.
+- **Configurable Hold TTL (10 Mins)**: Selected seats are placed on a 10-minute hold. If checkout is abandoned, seats auto-release.
+- **Background Cron Release Worker**: Cloudflare Scheduled Worker (`*/1 * * * *`) automatically purges expired seat holds and waitlist offers every 60 seconds.
 
-## Setup Guide
+### 📋 Waitlist Management & Auto-Reallocation
+- **Category-Based Waitlists**: Customers can join waitlists per seat category (Premium, Standard) when an event sells out.
+- **Automatic Cancellation Reallocation**: Cancelling a booking triggers an automated waitlist search, generating a cryptographic time-limited claim token (`#/event/ID?claim=TOKEN`) emailed to the next customer in line.
 
+### 🎫 QR Code Tickets & Email Notifications
+- **Server-Side QR Generation**: Generates high-resolution QR code encoding the unique booking reference (`TB-XXXXXXXX`).
+- **Instant Email Delivery**: Dispatches confirmation emails with QR tickets via Resend API integration.
+
+---
+
+## 👥 Role-Based Access & Demo Credentials
+
+| Role | Email | Password | Permissions |
+|---|---|---|---|
+| **Admin** | `admin@example.com` | `admin123` | Create venues, define rows/cols & seat categories |
+| **Organiser** | `organiser@example.com` | `organiser123` | Create listings, set per-category pricing, view revenue reports |
+| **Customer** | `customer@example.com` | `customer123` | Browse events, hold/book seats, join waitlists, view history & cancel |
+
+---
+
+## 🛠️ Technology Stack
+
+- **Runtime & Hosting**: [Cloudflare Workers](https://workers.cloudflare.com/) (Edge V8 JavaScript Runtime)
+- **Database**: [Cloudflare D1](https://developers.cloudflare.com/d1/) (Distributed SQLite at the Edge)
+- **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3 Glassmorphism System
+- **Email & QR**: Resend API & QR Code Generator
+- **Authentication**: Stateless JWT (JSON Web Tokens) with role claims
+
+---
+
+## ⚡ Quick Start & Local Setup Guide
+
+### 1. Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- Cloudflare Wrangler CLI (`npm install -g wrangler`)
+
+### 2. Installation
 ```bash
-git clone <repo-url> TicketBookingSystem
+# Clone the repository
+git clone https://github.com/razbbx/ticket-booking-system.git
 cd TicketBookingSystem
+
+# Install dependencies
 npm install
-npx wrangler login        # skip if already logged in
-cp .dev.vars.example .dev.vars
-# set SECRET to any random string, e.g.:
-#   openssl rand -hex 32
-npm run db:apply:local && npm run db:seed:local
-npm run dev
 ```
 
-Then open **http://localhost:8787** in your browser.
-
-- `npm run db:apply:local` creates the D1 tables locally (from `migrations/`).
-- `npm run db:seed:local` loads demo accounts, venues, and events.
-- `npm run dev` starts the local Workers dev server on port `8787`.
-- Until email is configured, ticket/offer emails are logged to the console (see `wrangler tail`).
-
-## Seeded Demo Accounts
-
-| Role      | Email                  | Password      |
-| --------- | ---------------------- | ------------- |
-| Admin     | admin@example.com      | admin123      |
-| Organiser | organiser@example.com  | organiser123  |
-| Customer  | customer@example.com   | customer123   |
-
-## Deployment Guide
-
+### 3. Environment Variables Setup
+Copy `.env.example` to `.dev.vars` for local development:
 ```bash
-npx wrangler secret put SECRET     # same value as .dev.vars
-npm run db:apply:remote && npm run db:seed:remote
-npm run deploy                     # → https://<your-subdomain>.workers.dev
+cp .env.example .dev.vars
 ```
 
-Then update the `APP_URL` var in `wrangler.jsonc` to your deployed URL (e.g. `https://ticket-booking-system.<your-subdomain>.workers.dev`) and redeploy with `npm run deploy`. `APP_URL` is used as the base URL in emails and links.
-
-## Email Setup
-
-Email sending is optional for local development — until configured, emails (QR tickets, waitlist offers) are written to the console.
-
-**Primary — Cloudflare Email Sending:**
-
-1. `npx wrangler email sending enable yourdomain.com` (once per zone/domain).
-2. Add a send binding to `wrangler.jsonc`:
-   ```json
-   "send_email": [{ "name": "EMAIL" }]
-   ```
-3. Use a from address such as `anything@yourdomain.com`.
-
-**Alternative — Resend:**
-
-1. Create an API key at https://resend.com.
-2. Set it as a secret: `npx wrangler secret put RESEND_API_KEY`.
-3. Optionally override the sender with the `RESEND_FROM` var (defaults to `Ticket Booking <tickets@yourdomain.com>`).
-
-## Configuration Reference
-
-### `wrangler.jsonc` vars
-
-| Var                | Description                                                             | Default            |
-| ------------------ | ----------------------------------------------------------------------- | ------------------ |
-| `APP_URL`          | Public base URL used in emails/links (deployed URL in production)       | `http://localhost:8787` |
-| `HOLD_TTL_MINUTES` | Minutes a held seat stays locked before auto-release                    | `10`               |
-| `OFFER_TTL_MINUTES`| Minutes a waitlist offer (place-hold) stays valid before expiry         | `10`               |
-
-### `.dev.vars` (local only; mirror as secrets for production)
-
-| Variable          | Description                                             |
-| ----------------- | ------------------------------------------------------- |
-| `SECRET`          | Random string used to sign auth tokens (`openssl rand -hex 32`) |
-| `RESEND_API_KEY`  | *(optional)* Resend API key (used only if set)          |
-| `RESEND_FROM`     | *(optional)* Sender for Resend emails                   |
-
-Production secrets are set with `npx wrangler secret put <NAME>` and are not committed to the repo.
-
-## API Reference
-
-Auth: most endpoints require `Authorization: Bearer <token>` (Web Crypto HMAC-signed). Roles — `A` admin, `O` organiser, `C` customer.
-
-### Auth
-| Method | Path                 | Auth | Description                    |
-| ------ | -------------------- | ---- | ------------------------------ |
-| POST   | `/api/auth/register` | –    | Register a customer account    |
-| POST   | `/api/auth/login`    | –    | Login, returns signed token    |
-
-### Events & Catalog
-| Method | Path                 | Auth | Description             |
-| ------ | -------------------- | ---- | ----------------------- |
-| GET    | `/api/events`        | –    | List published events   |
-| GET    | `/api/events/:id`    | –    | Event details + showtime|
-| GET    | `/api/events/:id/seats` | – | Seat map for an event  |
-
-### Seats, Hold, Book, Cancel
-| Method | Path                        | Auth | Description                                        |
-| ------ | --------------------------- | ---- | -------------------------------------------------- |
-| POST   | `/api/events/:id/hold`      | C    | Place a TTL hold on one or more seats              |
-| DELETE | `/api/events/:id/hold/:holdToken` | C | Release a hold early                            |
-| POST   | `/api/events/:id/book`      | C    | Confirm hold & book seats (issues ticket, sends email) |
-| POST   | `/api/events/:id/cancel`    | C    | Cancel a confirmed booking (frees seats)           |
-
-### Waitlist
-| Method | Path                         | Auth | Description                             |
-| ------ | ---------------------------- | ---- | --------------------------------------- |
-| POST   | `/api/events/:id/waitlist`   | C    | Join waitlist for a category             |
-| POST   | `/api/waitlist/offer/:token` | C    | Accept a seat offer within offer TTL     |
-
-### Bookings
-| Method | Path               | Auth | Description                    |
-| ------ | ------------------ | ---- | ------------------------------ |
-| GET    | `/api/bookings`    | C    | List own bookings              |
-| GET    | `/api/bookings/:ref`| C   | Booking detail + ticket info   |
-
-### Organiser
-| Method | Path                                  | Auth | Description                        |
-| ------ | ------------------------------------- | ---- | ---------------------------------- |
-| POST   | `/api/organiser/events`               | O    | Create an event                    |
-| GET    | `/api/organiser/events`               | O    | List own events with reports       |
-| GET    | `/api/organiser/events/:id/revenue`   | O    | Revenue report for one event       |
-
-### Admin (venues CRUD) & Public (venues list)
-| Method | Path                | Auth | Description                        |
-| ------ | ------------------- | ---- | ---------------------------------- |
-| GET    | `/api/venues`       | –    | List venues (public)               |
-| POST   | `/api/venues`       | A    | Create venue + categories           |
-| PUT    | `/api/venues/:id`   | A    | Update venue / category layout      |
-| DELETE | `/api/venues/:id`   | A    | Delete venue                        |
-
-## Database Schema
-
-Tables: `users`, `venues`, `venue_categories`, `events`, `event_pricing`, `show_seats`, `bookings`, `waitlist`.
-
-| Table             | Columns                                                                                  |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| `users`           | `id`, `name`, `email` (unique), `password_hash`, `role` (`admin`/`organiser`/`customer`), `created_at` |
-| `venues`          | `id`, `name`, `address`, `created_at`                                                     |
-| `venue_categories`| `id`, `venue_id`, `name` (e.g. Gold), `rows`, `cols`, `base_price`                        |
-| `events`          | `id`, `title`, `type` (movie/concert), `venue_id`, `showtime`, `status` (`draft`/`published`), `organiser_id`, `created_at` |
-| `event_pricing`   | `id`, `event_id`, `category_id`, `price`                                                  |
-| `show_seats`      | `id`, `show_id`, `row`, `col`, `category_id`, `status` (`free`/`held`/`booked`), `hold_id`, `hold_expires_at`, `booking_id` |
-| `bookings`        | `id`, `booking_ref`, `user_id`, `show_id`, `status`, `total`, `ticket_json`, `created_at` |
-| `waitlist`        | `id`, `show_id`, `user_id`, `category_id`, `position`, `offer_token`, `offer_expires_at`, `status` (`waiting`/`offered`/`assigned`/`expired`) |
-
-## Seat Hold & Waitlist Logic
-
-**Seat hold with TTL.** A customer selects seats and `POST /hold`. The server validates each seat is `free`, then marks them `held`, records a `hold_expires_at = now + HOLD_TTL_MINUTES` (configurable var, default 10 minutes), and stores a `hold_id`. The client holds the seats for the TTL while the customer confirms payment. On expiry the hold is "lazy-expired" (checked and reset on next access) and also reclaimed by a periodic cron sweep that resets expired `held` seats back to `free`.
-
-**Concurrency prevention.** Holds and bookings are executed as a single guarded `UPDATE ... WHERE status = 'free'` (or `... WHERE status='held' AND hold_expires_at > now` for booking). This atomic compare-and-set runs in one statement, and D1 serialises writes on the SQLite single-writer lock, so two customers can never hold the same seat and a hold can never be double-booked. Batch seat operations run inside a D1 transaction (`batch`), so a multi-seat hold either commits fully or not at all.
-
-**Waitlist auto-assignment.** When a customer wants a category that is sold out, they join a FIFO queue (`waitlist` with a monotonic `position` per show+category). When a seat frees up (hold expiry, cancellation, or declined offer), the first `waiting` entry for that category is promoted to `offered` — given a unique `offer_token` and an `offer_expires_at = now + OFFER_TTL_MINUTES` — and the seat is placed on a short hold bound to that token. If the offer is accepted (valid token, not expired), the seat is booked; otherwise it lapses and the next-in-line is promoted.
-
-**Time-limited offers.** Offers are one-time tokens that can only be redeemed while valid and never outlive `OFFER_TTL_MINUTES`. The accept endpoint validates the token, expiry, and seat status inside a transaction, so a token can only ever be redeemed once — preventing double-claims and stale redemptions. Email notifications keep the customer informed of offer grants and expiry.
-
-## Hosted URL
-
-Hosted at: `https://ticket-booking-system.fshare-ayush-demo.workers.dev`
-
-## Project Structure
-
+### 4. Local Database Setup & Migrations
+```bash
+# Apply database migrations to local D1 SQLite engine
+npx wrangler d1 execute ticket-booking-db --local --file=./migrations/0001_init.sql
+npx wrangler d1 execute ticket-booking-db --local --file=./migrations/0002_seed.sql
+npx wrangler d1 execute ticket-booking-db --local --file=./migrations/0003_populate_events.sql
+npx wrangler d1 execute ticket-booking-db --local --file=./migrations/0004_expanded_venues.sql
 ```
-TicketBookingSystem/
-├── .dev.vars.example         # Local secrets template (SECRET, Resend)
-├── .gitignore
-├── package.json
-├── wrangler.jsonc            # Workers config (bindings, D1, vars, send_email)
-├── migrations/               # D1 SQL migrations (applied via db:apply:local/remote)
-├── docs/
-│   └── system-design.md      # System design write-up
-├── public/                   # Static frontend (vanilla JS/CSS)
-│   ├── index.html
-│   ├── css/
-│   └── js/
-└── src/                      # Workers modules
-    ├── index.js              # Entry point & request router
-    ├── auth.js               # Web Crypto auth (tokens, roles)
-    ├── db.js                 # D1 queries + prepared statements
-    ├── routes/               # Route handlers (auth, events, seats, bookings, waitlist, organiser, admin)
-    └── services/             # Business logic (holds, waitlist, email, qr)
+
+### 5. Run Local Development Server
+```bash
+# Start local dev server connected to remote D1 or local SQLite
+npx wrangler dev --remote --port 8787
 ```
+Open **[http://localhost:8787](http://localhost:8787)** in your browser.
+
+---
+
+## 📡 API Endpoints Reference Table
+
+All API endpoints are prefixed with `/svc/` to avoid browser ad-blocker filter conflicts.
+
+### Authentication (`/svc/auth`)
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/svc/auth/register` | Public | Register new user (Customer or Organiser) |
+| `POST` | `/svc/auth/login` | Public | Authenticate user and return JWT bearer token |
+| `GET` | `/svc/auth/me` | Authenticated | Retrieve current user profile |
+
+### Events & Seat Selection (`/svc/events`)
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/svc/events` | Public | List all upcoming events (supports `?q=`, `?type=`) |
+| `GET` | `/svc/events/:id` | Public | Get single event details and category pricing |
+| `GET` | `/svc/events/:id/seats` | Public | Get real-time seat status grid for event venue |
+| `POST` | `/svc/events/:id/hold` | Customer | Hold selected seats for 10 minutes |
+| `DELETE` | `/svc/events/:id/hold/:token` | Customer | Manually release held seats |
+| `POST` | `/svc/events/:id/book` | Customer | Complete booking for held seats & generate QR |
+
+### Bookings & History (`/svc/bookings`)
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/svc/bookings` | Customer | View customer booking history & QR tickets |
+| `POST` | `/svc/events/:id/cancel` | Customer | Cancel booking & trigger waitlist reallocation |
+
+### Organiser & Admin (`/svc/organiser`, `/svc/admin`)
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/svc/organiser/events` | Organiser | Create new movie or concert listing |
+| `GET` | `/svc/organiser/events/:id/revenue` | Organiser | View per-category booking revenue report |
+| `POST` | `/svc/admin/venues` | Admin | Create new venue with row/col seat layout |
+
+---
+
+## 🗄️ Database Schema & Architecture
+
+The database schema is defined in [`migrations/0001_init.sql`](file:///home/raz/Documents/projects/Unthinkable/TicketBookingSystem/migrations/0001_init.sql):
+
+- **`users`**: Stores user accounts, hashed passwords, roles (`admin`, `organiser`, `customer`).
+- **`venues`**: Defines venue physical layouts (`rows`, `cols`, `address`).
+- **`events`**: Links listings to venue, date, time, and organiser.
+- **`event_pricing`**: Stores per-category pricing for each event.
+- **`show_seats`**: Real-time seat inventory per show (`seat_row`, `seat_col`, `status`, `hold_token`, `hold_expires_at`).
+- **`bookings`**: Stores confirmed bookings, unique reference `TB-XXXXXXXX`, and QR data.
+- **`waitlist`**: Stores category waitlist queues and claim offer tokens.
+
+---
+
+## 📝 System Design Summary (Max 800 Words)
+
+For the full detailed System Design Document, see [`SYSTEM_DESIGN.md`](SYSTEM_DESIGN.md).
+
+### Concurrency & Concurrency Control
+Concurrency protection is achieved at the database engine level using **atomic conditional updates**:
+```sql
+UPDATE show_seats SET status = 'held', hold_token = ? 
+WHERE event_id = ? AND id IN (...) 
+  AND (status = 'available' OR (status = 'held' AND hold_expires_at < ?));
+```
+If two users select the same seat simultaneously, exactly one statement updates the database row. The losing request receives an `HTTP 409 Conflict` response and is prompted to choose another seat.
+
+### Waitlist Auto-Reallocation
+When a booking is cancelled, the system executes an atomic batch transaction freeing the seat and querying the oldest waitlist entry for that category. A secure 10-minute claim token is generated and emailed to the waitlisted customer. If unclaimed before expiration, the Cloudflare Cron Worker offers the seat to the next person in line.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License - see the `LICENSE` file for details.
