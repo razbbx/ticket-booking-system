@@ -584,6 +584,42 @@ a:hover {
   text-align: center;
 }
 
+.aisle-gap-col {
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.aisle-gap-row {
+  margin: 6px 0;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.aisle-gap-row span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.seat-compact .seat {
+  width: 24px;
+  height: 24px;
+  font-size: 9px;
+  border-radius: 4px;
+}
+
+.seat-compact .row-label {
+  width: 32px;
+  font-size: 10px;
+}
+
 .seat {
   width: 36px;
   height: 36px;

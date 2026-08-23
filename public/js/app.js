@@ -678,9 +678,22 @@
     currentMinCol = minCol;
 
     var totalCols = (maxCol - minCol + 1);
+    var totalRows = (maxRow - minRow + 1);
     var soldOut = availableCount === 0;
 
-    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid">';
+    var isMovie = event && (event.type || '').toLowerCase() === 'movie';
+    var isCompact = totalCols > 20 || totalRows > 20;
+
+    // Movie layout aisle split ratios:
+    // Horizontal 25% : 50% : 25%
+    var leftAisleAfterCol = isMovie ? Math.round(totalCols * 0.25) : 0;
+    var rightAisleAfterCol = isMovie ? Math.round(totalCols * 0.75) : 0;
+
+    // Vertical 20% : 60% : 20%
+    var frontAisleAfterRow = isMovie ? Math.round(totalRows * 0.20) : 0;
+    var rearAisleAfterRow = isMovie ? Math.round(totalRows * 0.80) : 0;
+
+    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid' + (isCompact ? ' seat-compact' : '') + '">';
     for (var r = minRow; r <= maxRow; r++) {
       var rowIdx = r - minRow;
       var rowLetter = String.fromCharCode(65 + rowIdx);
@@ -688,31 +701,42 @@
       for (var c = minCol; c <= maxCol; c++) {
         var key = seatKey(r, c);
         var s = seatsByKey[key];
+        var colDisplay = c - minCol + 1;
+
         if (!s) {
           gridHtml += '<div class="seat" style="visibility:hidden;"></div>';
-          continue;
+        } else {
+          var status = s.status || 'available';
+          var isSelected = selectedSeats.indexOf(key) >= 0;
+          var isHeldByMe = hold && Array.isArray(hold.seatIds) && hold.seatIds.indexOf(key) >= 0;
+
+          var cls = 'seat';
+          var cat = s.category_name || s.category || 'Standard';
+          if (cat.toLowerCase().indexOf('premium') >= 0) cls += ' category-premium';
+
+          if (isSelected) cls += ' selected';
+          else if (isHeldByMe) cls += ' held-by-me';
+          else if (status === 'held') cls += ' held';
+          else if (status === 'booked') cls += ' booked';
+          else cls += ' available';
+
+          gridHtml += '<div class="' + cls + '" data-action="toggle-seat" data-key="' + key + '" title="Row ' + rowLetter + ', Seat ' + colDisplay + ' (' + esc(cat) + ')">' +
+            (isSelected ? '✓' : colDisplay) +
+            '</div>';
         }
 
-        var colDisplay = c - minCol + 1;
-        var status = s.status || 'available';
-        var isSelected = selectedSeats.indexOf(key) >= 0;
-        var isHeldByMe = hold && Array.isArray(hold.seatIds) && hold.seatIds.indexOf(key) >= 0;
-
-        var cls = 'seat';
-        var cat = s.category_name || s.category || 'Standard';
-        if (cat.toLowerCase().indexOf('premium') >= 0) cls += ' category-premium';
-
-        if (isSelected) cls += ' selected';
-        else if (isHeldByMe) cls += ' held-by-me';
-        else if (status === 'held') cls += ' held';
-        else if (status === 'booked') cls += ' booked';
-        else cls += ' available';
-
-        gridHtml += '<div class="' + cls + '" data-action="toggle-seat" data-key="' + key + '" title="Row ' + rowLetter + ', Seat ' + colDisplay + ' (' + esc(cat) + ')">' +
-          (isSelected ? '✓' : colDisplay) +
-          '</div>';
+        // Horizontal Aisle Gap (25% : 50% : 25% ratio)
+        if (isMovie && (colDisplay === leftAisleAfterCol || colDisplay === rightAisleAfterCol) && colDisplay < totalCols) {
+          gridHtml += '<div class="aisle-gap-col"></div>';
+        }
       }
       gridHtml += '</div>';
+
+      // Vertical Walkway Aisle Gap (20% : 60% : 20% ratio)
+      var currentRowNum = rowIdx + 1;
+      if (isMovie && (currentRowNum === frontAisleAfterRow || currentRowNum === rearAisleAfterRow) && currentRowNum < totalRows) {
+        gridHtml += '<div class="aisle-gap-row"><span>Walkway &bull; Main Aisle</span></div>';
+      }
     }
     gridHtml += '</div></div>';
 
@@ -1374,3 +1398,4 @@
   window.addEventListener('hashchange', render);
   document.addEventListener('DOMContentLoaded', render);
 })();
+/* scale deployment */
