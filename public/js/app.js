@@ -671,6 +671,24 @@
 
   var isFirstSeatClick = true;
 
+  function renderQtyModal() {
+    var existing = $('#qtyModal');
+    if (existing) existing.remove();
+    var modalHtml = '<div id="qtyModal" class="modal-overlay">' +
+      '<div class="modal-card">' +
+        '<h2 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">How many tickets?</h2>' +
+        '<p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Select your ticket count to reserve seats on selection.</p>' +
+        '<div class="qty-options-grid">' +
+          [1, 2, 3, 4, 5, 6].map(function (n) {
+            return '<button type="button" class="qty-select-btn' + (requestedSeatCount === n ? ' active' : '') + '" data-action="confirm-qty" data-qty="' + n + '">' + n + ' Ticket' + (n > 1 ? 's' : '') + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+    var view = $('#eventView');
+    if (view) view.insertAdjacentHTML('afterbegin', modalHtml);
+  }
+
   /* ============================================================
    * Seat map + booking flow
    * ============================================================ */
@@ -724,7 +742,10 @@
           '</div>' +
           '<h1 style="font-size: 20px; font-weight: 800; line-height: 1.2;">' + esc(event.title || 'Event') + '</h1>' +
         '</div>' +
-        '<div style="display:flex; align-items:center; gap:16px;">' +
+        '<div style="display:flex; align-items:center; gap:12px;">' +
+          '<button type="button" class="btn btn-secondary btn-sm" data-action="open-qty-modal" id="qtyDisplayBtn" style="font-weight:700; font-size:12px;">' +
+            '🎟️ <span id="qtyValText">' + requestedSeatCount + '</span> Tickets (Change)' +
+          '</button>' +
           '<span style="color: var(--text-muted); font-size: 13px; font-weight: 600;">📅 ' + esc(formatDateTime(event.date, event.time)) + '</span>' +
         '</div>' +
       '</div>' +
@@ -839,9 +860,26 @@
     var isConcert = event && (event.type || '').toLowerCase() === 'concert';
 
     if (isConcert) {
-      // Concert Arena 230-degree Stadium Group Layout (NO SEAT GRID)
+      // Concert Arena 230-degree Visual Stadium Arc Map + Group Cards (NO SEAT MATRIX)
       var gridHtml = '<div class="stadium-arc-container">' +
-        '<div class="stage-central">⚡ MAIN STAGE & PERFORMANCE ARENA ⚡</div>' +
+        '<div class="stadium-map-graphic">' +
+          '<div class="stage-central">⚡ MAIN STAGE & PERFORMANCE ARENA ⚡</div>' +
+          '<div class="stadium-visual-arc">' +
+            '<div class="arc-ring vip-arc" data-action="select-zone" data-category="Premium" title="Front VIP Arc (0°-180°)">' +
+              '👑 Front VIP Arc Category Area (Stage Facing 0°–180°)' +
+            '</div>' +
+            '<div class="arc-ring golden-arc" data-action="select-zone" data-category="Premium" title="Golden Circle Stand (180°-230°)">' +
+              '🌟 Golden Circle Arc Category Area (Mid Arena 180°–230°)' +
+            '</div>' +
+            '<div class="arc-ring field-arc" data-action="select-zone" data-category="Standard" title="General Standing Field">' +
+              '🎪 General Standing Field Category Area' +
+            '</div>' +
+            '<div class="wings-wrapper">' +
+              '<div class="wing-box east-wing" data-action="select-zone" data-category="Standard">🏟️ East Stand Balcony</div>' +
+              '<div class="wing-box west-wing" data-action="select-zone" data-category="Standard">🏟️ West Stand Balcony</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
         '<div class="arc-zones-wrapper">';
 
       var priceMap = pricingOf(event);
@@ -860,10 +898,10 @@
 
         gridHtml += '<div class="stadium-zone-card' + (isZoneSelected ? ' selected-zone' : '') + '" data-action="select-zone" data-category="' + esc(cat) + '">' +
           '<div class="zone-header">' +
-            '<span class="zone-title">' + esc(cat) + ' Group Area</span>' +
+            '<span class="zone-title">' + esc(cat) + ' Category Area</span>' +
             '<span class="zone-badge ' + (isVip ? 'badge-vip' : 'badge-general') + '">' + (isVip ? 'Front VIP Arc (0°-180°)' : 'Field Standing (180°-230°)') + '</span>' +
           '</div>' +
-          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Closest premium group area facing main stage' : 'General field standing area with full stage view') + '</div>' +
+          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Located in inner front arc directly facing main performance stage' : 'Located in general field standing area with wide stage visibility') + '</div>' +
           '<div class="zone-meta">' +
             '<span class="zone-avail">🟢 ' + info.available + ' Tickets Available</span>' +
             '<span class="zone-price">' + money(pr) + ' / ticket</span>' +
@@ -1060,11 +1098,18 @@
       var params = new URLSearchParams(window.location.hash.split('?')[1] || '');
       if (t) params.set('type', t); else params.delete('type');
       navigate('/events' + (params.toString() ? '?' + params.toString() : ''));
+    } else if (action === 'open-qty-modal') {
+      renderQtyModal();
     } else if (action === 'confirm-qty') {
       requestedSeatCount = Number(btn.dataset.qty) || 2;
       isFirstSeatClick = true;
       var modal = $('#qtyModal');
       if (modal) modal.remove();
+      var qtyTxt = $('#qtyValText');
+      if (qtyTxt) qtyTxt.textContent = requestedSeatCount;
+      if (selectedSeats.length > requestedSeatCount) {
+        selectedSeats = selectedSeats.slice(0, requestedSeatCount);
+      }
       var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
       if (evId) refreshSeatMap(evId, eventCache[evId]);
     } else if (action === 'toggle-seat') {

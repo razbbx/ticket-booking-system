@@ -1187,6 +1187,97 @@ body.no-scroll-mode .container {
   font-weight: 900;
   color: #6ee7b7;
 }
+
+/* ============================================================
+   Visual Stadium Arena Map Graphic
+   ============================================================ */
+.stadium-map-graphic {
+  width: 100%;
+  max-width: 720px;
+  background: rgba(15, 23, 42, 0.92);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.stadium-visual-arc {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.arc-ring {
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 40px 40px 16px 16px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.arc-ring:hover {
+  transform: scale(1.02);
+  filter: brightness(1.2);
+}
+
+.vip-arc {
+  width: 75%;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(236, 72, 153, 0.25) 100%);
+  border: 2px dashed rgba(245, 158, 11, 0.6);
+  color: #fbbf24;
+}
+
+.golden-arc {
+  width: 88%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
+  border: 2px dashed rgba(99, 102, 241, 0.6);
+  color: #c084fc;
+}
+
+.field-arc {
+  width: 98%;
+  background: rgba(16, 185, 129, 0.15);
+  border: 2px dashed rgba(16, 185, 129, 0.5);
+  color: #6ee7b7;
+}
+
+.wings-wrapper {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 6px;
+  gap: 16px;
+}
+
+.wing-box {
+  flex: 1;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.wing-box:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-main);
+}
 .ticket-qty-picker {
   display: flex;
   align-items: center;
