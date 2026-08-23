@@ -54,7 +54,7 @@ async function handleApi(request, env, ctx) {
 
 async function handleFetch(request, env, ctx) {
   const url = new URL(request.url);
-  if (url.pathname.startsWith('/api/')) return handleApi(request, env, ctx);
+  if (url.pathname.startsWith('/svc/')) return handleApi(request, env, ctx);
   if (env.ASSETS) return env.ASSETS.fetch(request);
   return new Response('<html><body><h1>Not Found</h1></body></html>', {
     status: 404,

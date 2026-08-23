@@ -26,7 +26,7 @@ const FROM_JOINS = `
 `;
 
 export function register(router) {
-  router.get('/api/bookings', async (c) => {
+  router.get('/svc/bookings', async (c) => {
     const user = await requireRole(c, 'customer');
     const rows = await all(
       c.db,
@@ -36,7 +36,7 @@ export function register(router) {
     return json(rows);
   });
 
-  router.get('/api/bookings/:ref', async (c, params) => {
+  router.get('/svc/bookings/:ref', async (c, params) => {
     const user = await requireRole(c, 'customer');
     const row = await first(
       c.db,

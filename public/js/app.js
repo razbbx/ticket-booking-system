@@ -200,6 +200,7 @@
 
   function extractList(data) {
     if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.seats)) return data.seats;
     if (data && Array.isArray(data.events)) return data.events;
     if (data && Array.isArray(data.venues)) return data.venues;
     if (data && Array.isArray(data.bookings)) return data.bookings;
@@ -438,7 +439,7 @@
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      var endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      var endpoint = mode === 'login' ? '/svc/auth/login' : '/svc/auth/register';
       var res = await api(endpoint, { method: 'POST', body: data });
       token = res.token;
       user = res.user;
@@ -468,7 +469,7 @@
 
     var events = [];
     try {
-      var data = await api('/api/events' + (qs ? '?' + qs : ''));
+      var data = await api('/svc/events' + (qs ? '?' + qs : ''));
       events = extractList(data);
     } catch (err) {
       setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size: 20px; margin-bottom: 8px;">Could not load events</h3><p style="color: var(--text-muted); font-size: 14px;">' + esc(err.message) + '</p></div>');
@@ -559,7 +560,7 @@
 
     var event = null;
     try {
-      event = await api('/api/events/' + eventId);
+      event = await api('/svc/events/' + eventId);
       if (event && event.event) event = event.event;
       eventCache[eventId] = event;
     } catch (err) {
@@ -628,7 +629,7 @@
 
     var seatsData = null;
     try {
-      seatsData = await api('/api/events/' + eventId + '/seats');
+      seatsData = await api('/svc/events/' + eventId + '/seats');
     } catch (e) { return; }
 
     var seats = extractList(seatsData);
@@ -885,7 +886,7 @@
     }
 
     try {
-      var res = await api('/api/events/' + eventId + '/hold', {
+      var res = await api('/svc/events/' + eventId + '/hold', {
         method: 'POST',
         body: { seatIds: ids }
       });
@@ -921,7 +922,7 @@
         payload.seatIds = selectedSeats.map(function (k) { return seatIdMap[k]; }).filter(Boolean);
       }
 
-      var res = await api('/api/events/' + eventId + '/book', {
+      var res = await api('/svc/events/' + eventId + '/book', {
         method: 'POST',
         body: payload
       });
@@ -967,7 +968,7 @@
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      await api('/api/events/' + eventId + '/waitlist', {
+      await api('/svc/events/' + eventId + '/waitlist', {
         method: 'POST',
         body: { category: category }
       });
@@ -997,7 +998,7 @@
 
     var bookings = [];
     try {
-      bookings = extractList(await api('/api/bookings'));
+      bookings = extractList(await api('/svc/bookings'));
     } catch (err) {
       setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size: 20px; margin-bottom: 8px;">Could not load bookings</h3><p style="color: var(--text-muted); font-size: 14px;">' + esc(err.message) + '</p></div>');
       return;
@@ -1057,7 +1058,7 @@
     body.classList.remove('hidden');
     body.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">Loading ticket details...</p>';
     try {
-      var res = await api('/api/bookings/' + encodeURIComponent(ref));
+      var res = await api('/svc/bookings/' + encodeURIComponent(ref));
       var booking = extractBooking(res);
       var qr = qrOf(booking) || qrOf(res);
       body.innerHTML =
@@ -1079,7 +1080,7 @@
     );
     if (!ok) return;
     try {
-      await api('/api/events/' + encodeURIComponent(eventId) + '/cancel', {
+      await api('/svc/events/' + encodeURIComponent(eventId) + '/cancel', {
         method: 'POST',
         body: { booking_ref: ref }
       });
@@ -1099,7 +1100,7 @@
 
     var events = [];
     try {
-      events = extractList(await api('/api/organiser/events'));
+      events = extractList(await api('/svc/organiser/events'));
     } catch (err) {
       setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size:20px; margin-bottom:8px;">Could not load events</h3><p style="color:var(--text-muted); font-size:14px;">' + esc(err.message) + '</p></div>');
       return;
@@ -1152,9 +1153,9 @@
     if (!select) return;
     var venues = [];
     try {
-      venues = extractList(await api('/api/venues'));
+      venues = extractList(await api('/svc/venues'));
     } catch (e1) {
-      try { venues = extractList(await api('/api/admin/venues')); } catch (e2) {}
+      try { venues = extractList(await api('/svc/admin/venues')); } catch (e2) {}
     }
     if (!venues.length) {
       select.innerHTML = '<option value="">No venues available</option>';
@@ -1219,7 +1220,7 @@
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      await api('/api/organiser/events', { method: 'POST', body: body });
+      await api('/svc/organiser/events', { method: 'POST', body: body });
       toast('Event created successfully.', 'success');
       viewOrganiser();
     } catch (err) {
@@ -1233,7 +1234,7 @@
     if (!requireRole('organiser')) return;
     setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading revenue details...</p></div>');
     try {
-      var data = await api('/api/organiser/events/' + eventId + '/revenue');
+      var data = await api('/svc/organiser/events/' + eventId + '/revenue');
       var cats = data.per_category || data.by_category || [];
       var total = data.total || { count: 0, revenue: 0 };
 
@@ -1261,7 +1262,7 @@
 
     var venues = [];
     try {
-      venues = extractList(await api('/api/admin/venues'));
+      venues = extractList(await api('/svc/admin/venues'));
     } catch (err) {
       setView('<div class="card" style="text-align:center;"><p>Could not load venues: ' + esc(err.message) + '</p></div>');
       return;
@@ -1311,7 +1312,7 @@
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      await api('/api/admin/venues', {
+      await api('/svc/admin/venues', {
         method: 'POST',
         body: { name: name, address: address, rows: rows, cols: cols, categories: categories }
       });
@@ -1337,7 +1338,7 @@
     setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Validating waitlist offer...</p></div>');
 
     try {
-      var res = await api('/api/waitlist/offer/' + encodeURIComponent(token), { method: 'POST' });
+      var res = await api('/svc/waitlist/offer/' + encodeURIComponent(token), { method: 'POST' });
       claim = {
         token: token,
         eventId: res.event_id || res.eventId,

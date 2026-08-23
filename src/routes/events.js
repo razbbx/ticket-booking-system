@@ -9,11 +9,11 @@ import {
 } from '../services/venue-layout.js';
 
 export function register(router) {
-  router.get('/api/venues', async (c) => {
+  router.get('/svc/venues', async (c) => {
     return json(await listVenues(c.db));
   });
 
-  router.get('/api/events', async (c) => {
+  router.get('/svc/events', async (c) => {
     const type = c.url.searchParams.get('type');
     const q = c.url.searchParams.get('q');
     const date = c.url.searchParams.get('date');
@@ -58,7 +58,7 @@ export function register(router) {
     return json(out);
   });
 
-  router.get('/api/events/:id', async (c, params) => {
+  router.get('/svc/events/:id', async (c, params) => {
     const evt = await first(
       c.db,
       `SELECT e.*, v.name AS venue_name, v.rows AS venue_rows, v.cols AS venue_cols
@@ -87,7 +87,7 @@ export function register(router) {
     });
   });
 
-  router.post('/api/organiser/events', async (c) => {
+  router.post('/svc/organiser/events', async (c) => {
     const user = await requireRole(c, 'organiser');
     const { venue_id, title, type, date, time, description, pricing } = c.body || {};
     if (!title || !type || !date || !time) {
@@ -145,7 +145,7 @@ export function register(router) {
     return json(evt, 201);
   });
 
-  router.get('/api/organiser/events', async (c) => {
+  router.get('/svc/organiser/events', async (c) => {
     const user = await requireRole(c, 'organiser');
     const rows = await all(
       c.db,
@@ -156,7 +156,7 @@ export function register(router) {
     return json(rows);
   });
 
-  router.get('/api/organiser/events/:id/revenue', async (c, params) => {
+  router.get('/svc/organiser/events/:id/revenue', async (c, params) => {
     const user = await requireRole(c, 'organiser');
     const evt = await first(
       c.db,

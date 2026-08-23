@@ -7,7 +7,7 @@ import { sendTicket } from '../services/email.js';
 import { offerNextInLine } from '../services/waitlist-service.js';
 
 export function register(router) {
-  router.get('/api/events/:id/seats', async (c, params) => {
+  router.get('/svc/events/:id/seats', async (c, params) => {
     const eventId = Number(params.id);
     const evt = await first(c.db, 'SELECT id, venue_id FROM events WHERE id = ?', eventId);
     if (!evt) throw new HttpError(404, 'event not found');
@@ -33,7 +33,7 @@ export function register(router) {
     });
   });
 
-  router.post('/api/events/:id/hold', async (c, params) => {
+  router.post('/svc/events/:id/hold', async (c, params) => {
     await requireRole(c, 'customer');
     const eventId = Number(params.id);
     const evt = await first(c.db, 'SELECT id FROM events WHERE id = ?', eventId);
@@ -76,7 +76,7 @@ export function register(router) {
     });
   });
 
-  router.delete('/api/events/:id/hold/:holdToken', async (c, params) => {
+  router.delete('/svc/events/:id/hold/:holdToken', async (c, params) => {
     await requireRole(c, 'customer');
     await run(
       c.db,
@@ -88,7 +88,7 @@ export function register(router) {
     return json({ released: true });
   });
 
-  router.post('/api/events/:id/book', async (c, params) => {
+  router.post('/svc/events/:id/book', async (c, params) => {
     const user = await requireRole(c, 'customer');
     const eventId = Number(params.id);
     const evt = await first(c.db, 'SELECT * FROM events WHERE id = ?', eventId);
@@ -185,7 +185,7 @@ export function register(router) {
     return json({ bookings }, 200);
   });
 
-  router.post('/api/events/:id/cancel', async (c, params) => {
+  router.post('/svc/events/:id/cancel', async (c, params) => {
     const user = await requireRole(c, 'customer');
     const eventId = Number(params.id);
     const { booking_ref } = c.body || {};

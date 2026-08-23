@@ -5,7 +5,7 @@ import { json } from '../http.js';
 const ALLOWED_ROLES = ['customer', 'organiser'];
 
 export function register(router) {
-  router.post('/api/auth/register', async (c) => {
+  router.post('/svc/auth/register', async (c) => {
     const { name, email, password, role = 'customer' } = c.body || {};
     if (!name || !email || !password) {
       throw new HttpError(400, 'name, email and password are required');
@@ -32,7 +32,7 @@ export function register(router) {
     return json({ token: await signToken(user.id, user.role, c.env.SECRET || ''), user }, 201);
   });
 
-  router.post('/api/auth/login', async (c) => {
+  router.post('/svc/auth/login', async (c) => {
     const { email, password } = c.body || {};
     const user = await first(c.db, 'SELECT * FROM users WHERE email = ?', email);
     if (!user || !(await verifyPassword(password, user.password_hash))) {

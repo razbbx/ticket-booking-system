@@ -8,7 +8,7 @@ function randomToken() {
 }
 
 export function register(router) {
-  router.post('/api/events/:id/waitlist', async (c, params) => {
+  router.post('/svc/events/:id/waitlist', async (c, params) => {
     const user = await requireRole(c, 'customer');
     const eventId = Number(params.id);
     const evt = await first(c.db, 'SELECT id FROM events WHERE id = ?', eventId);
@@ -57,7 +57,7 @@ export function register(router) {
     return json({ waitlist: entry }, 201);
   });
 
-  router.post('/api/waitlist/offer/:token', async (c, params) => {
+  router.post('/svc/waitlist/offer/:token', async (c, params) => {
     const user = await requireRole(c, 'customer');
     const token = params.token;
     const now = Date.now();

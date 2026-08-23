@@ -4,12 +4,12 @@ import { json } from '../http.js';
 import { normalizeCategories, distributeRows, listVenues } from '../services/venue-layout.js';
 
 export function register(router) {
-  router.get('/api/admin/venues', async (c) => {
+  router.get('/svc/admin/venues', async (c) => {
     await requireRole(c, 'admin');
     return json(await listVenues(c.db));
   });
 
-  router.post('/api/admin/venues', async (c) => {
+  router.post('/svc/admin/venues', async (c) => {
     await requireRole(c, 'admin');
     const { name, address, rows, cols, categories } = c.body || {};
     const r = Number(rows);
@@ -46,7 +46,7 @@ export function register(router) {
     return json({ ...venue, categories: dist.map((cat) => ({ category_name: cat.name, row_count: cat.rows })) }, 201);
   });
 
-  router.delete('/api/admin/venues/:id', async (c, params) => {
+  router.delete('/svc/admin/venues/:id', async (c, params) => {
     await requireRole(c, 'admin');
     const vid = Number(params.id);
     const venue = await first(c.db, 'SELECT * FROM venues WHERE id = ?', vid);
