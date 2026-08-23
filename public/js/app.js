@@ -6,10 +6,10 @@
 
   var REMOTE_API_BASE = 'https://ticket-booking-system.fshare-ayush-demo.workers.dev';
   var API_BASE = (function () {
-    if (window.location.protocol === 'file:' || !window.location.hostname || (window.location.hostname === 'localhost' && window.location.port !== '8787')) {
-      return REMOTE_API_BASE;
+    if (window.location.hostname.indexOf('workers.dev') >= 0 || (window.location.hostname === 'localhost' && window.location.port === '8787')) {
+      return '';
     }
-    return '';
+    return REMOTE_API_BASE;
   })();
 
   var POLL_MS = 3000;           // seat-map polling interval
