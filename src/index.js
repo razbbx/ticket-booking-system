@@ -26,7 +26,7 @@ async function handleApi(request, env, ctx) {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
 
-  if (method === 'OPTIONS') return corsResponse();
+  if (method === 'OPTIONS') return corsResponse(request);
 
   let body = null;
   if (method === 'POST' || method === 'PUT' || method === 'PATCH') {

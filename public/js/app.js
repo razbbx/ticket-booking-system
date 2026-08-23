@@ -156,7 +156,10 @@
    * ============================================================ */
   async function api(path, opts) {
     opts = opts || {};
-    var headers = { 'Content-Type': 'application/json' };
+    var headers = {};
+    if (opts.body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+    }
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
     var url = (API_BASE || '') + path;
