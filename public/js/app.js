@@ -1,13 +1,19 @@
 /* ============================================================
- * Ticket Booking System - Frontend (vanilla JS, hash-routed SPA)
- * ============================================================ */
+   Ticket Booking System - Frontend (vanilla JS, hash-routed SPA)
+   ============================================================ */
 (function () {
   'use strict';
 
-  var API_BASE = '';            // same origin; backend serves public/ + /api/*
+  var REMOTE_API_BASE = 'https://ticket-booking-system.fshare-ayush-demo.workers.dev';
+  var API_BASE = (function () {
+    if (window.location.protocol === 'file:' || !window.location.hostname || (window.location.hostname === 'localhost' && window.location.port !== '8787')) {
+      return REMOTE_API_BASE;
+    }
+    return '';
+  })();
+
   var POLL_MS = 3000;           // seat-map polling interval
   var MAX_SELECTABLE = 6;       // max seats a customer may select per booking
-
   var TYPES = ['Movie', 'Concert'];
 
   /* ---------- localStorage-backed session ---------- */
@@ -107,6 +113,7 @@
    * ============================================================ */
   function toast(message, type) {
     var region = $('#toastRegion');
+    if (!region) return;
     var el = document.createElement('div');
     el.className = 'toast ' + (type || 'info');
     el.textContent = message;
@@ -145,18 +152,36 @@
   }
 
   /* ============================================================
-   * API client
+   * API client with auto-fallback to deployed Cloudflare Worker
    * ============================================================ */
   async function api(path, opts) {
     opts = opts || {};
     var headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
-    var res = await fetch(API_BASE + path, {
-      method: opts.method || 'GET',
-      headers: headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
-    });
+    var url = (API_BASE || '') + path;
+    var res;
+    try {
+      res = await fetch(url, {
+        method: opts.method || 'GET',
+        headers: headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+      });
+    } catch (err) {
+      if (API_BASE !== REMOTE_API_BASE) {
+        try {
+          res = await fetch(REMOTE_API_BASE + path, {
+            method: opts.method || 'GET',
+            headers: headers,
+            body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+          });
+        } catch (e2) {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
     var data = null;
     try { data = await res.json(); } catch (e) { data = null; }
@@ -247,38 +272,42 @@
   function renderNav() {
     var nav = $('#navLinks');
     var userBox = $('#navUser');
-    var html = '';
-    var active = routeFor().name;
+    if (!nav || !userBox) return;
 
-    var links = [];
-    links.push({ href: '#/events', label: 'Browse Events', name: 'events' });
+    var active = routeFor().name;
+    var links = [
+      { href: '#/events', label: 'Browse Events', name: 'events' }
+    ];
 
     if (user) {
       if (user.role === 'customer') {
         links.push({ href: '#/bookings', label: 'My Bookings', name: 'bookings' });
       } else if (user.role === 'organiser') {
-        links.push({ href: '#/organiser', label: 'Dashboard', name: 'organiser' });
+        links.push({ href: '#/organiser', label: 'Organiser Dashboard', name: 'organiser' });
       } else if (user.role === 'admin') {
         links.push({ href: '#/admin', label: 'Admin Panel', name: 'admin' });
       }
     }
 
-    html = links.map(function (l) {
-      return '<a href="' + l.href + '"' + (active === l.name ? ' class="active"' : '') + '>' +
+    var html = links.map(function (l) {
+      return '<a href="' + l.href + '" class="nav-link' + (active === l.name ? ' active' : '') + '">' +
         esc(l.label) + '</a>';
     }).join('');
 
     if (!user) {
-      html += '<a href="#/login">Login</a><a href="#/register">Register</a>';
+      html += '<a href="#/login" class="nav-link' + (active === 'login' ? ' active' : '') + '">Login</a>' +
+              '<a href="#/register" class="btn btn-sm btn-primary" style="margin-left: 8px;">Register</a>';
     }
 
     nav.innerHTML = html;
 
     if (user) {
       userBox.innerHTML =
-        '<span class="badge-role">' + esc(user.role || '') + '</span>' +
-        '<span>' + esc(user.name || user.email || '') + '</span>' +
-        '<button type="button" class="btn btn-sm btn-ghost" data-action="logout">Logout</button>';
+        '<div class="user-badge">' +
+          '<span>' + esc(user.name || user.email || '') + '</span>' +
+          '<span class="role-pill role-' + esc(user.role || 'customer') + '">' + esc(user.role || '') + '</span>' +
+        '</div>' +
+        '<button type="button" class="btn btn-sm btn-secondary" data-action="logout">Logout</button>';
     } else {
       userBox.innerHTML = '';
     }
@@ -286,12 +315,12 @@
 
   function requireRole(role) {
     if (!user) {
-      toast('Please log in first.', 'error');
+      toast('Please log in first.', 'info');
       navigate('/login');
       return false;
     }
     if (role && user.role !== role) {
-      toast('You do not have permission to access this page.', 'error');
+      toast('You do not have permission to access this page.', 'danger');
       navigate('/events');
       return false;
     }
@@ -331,7 +360,8 @@
   }
 
   function setView(html) {
-    $('#view').innerHTML = html;
+    var v = $('#view');
+    if (v) v.innerHTML = html;
   }
 
   /* ============================================================
@@ -340,10 +370,10 @@
   function viewAuth(mode) {
     var isLogin = mode === 'login';
     setView(
-      '<div class="auth-wrap card">' +
-        '<div class="auth-tabs">' +
-          '<button type="button" class="tab' + (isLogin ? ' active' : '') + '" data-action="auth-tab" data-mode="login">Login</button>' +
-          '<button type="button" class="tab' + (!isLogin ? ' active' : '') + '" data-action="auth-tab" data-mode="register">Register</button>' +
+      '<div style="max-width: 440px; margin: 40px auto 0;" class="card">' +
+        '<div style="display: flex; gap: 8px; margin-bottom: 24px; background: rgba(255,255,255,0.04); padding: 4px; border-radius: var(--radius-md);">' +
+          '<button type="button" class="btn ' + (isLogin ? 'btn-primary' : 'btn-secondary') + '" style="flex: 1;" data-action="auth-tab" data-mode="login">Login</button>' +
+          '<button type="button" class="btn ' + (!isLogin ? 'btn-primary' : 'btn-secondary') + '" style="flex: 1;" data-action="auth-tab" data-mode="register">Register</button>' +
         '</div>' +
         (isLogin ? loginFormHtml() : registerFormHtml()) +
       '</div>'
@@ -353,13 +383,17 @@
   function loginFormHtml() {
     return (
       '<form id="authForm" data-action="submit-auth" data-mode="login" novalidate>' +
-        '<div class="field mb"><label for="email">Email</label>' +
-          '<input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required></div>' +
-        '<div class="field mb"><label for="password">Password</label>' +
-          '<input id="password" name="password" type="password" autocomplete="current-password" required></div>' +
-        '<button type="submit" class="btn btn-primary btn-block mt">Login</button>' +
-        '<p class="hint center mt">Customers and organisers register an account. ' +
-          'Admins sign in with the seeded admin credentials created by the backend seed script.</p>' +
+        '<h2 style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">Welcome Back</h2>' +
+        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Sign in to your account to manage bookings and events.</p>' +
+        '<div class="form-group"><label for="email">Email Address</label>' +
+          '<input id="email" name="email" type="email" class="form-control" placeholder="you@example.com" autocomplete="email" required></div>' +
+        '<div class="form-group"><label for="password">Password</label>' +
+          '<input id="password" name="password" type="password" class="form-control" autocomplete="current-password" required></div>' +
+        '<button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 12px;">Sign In</button>' +
+        '<div style="margin-top: 20px; font-size: 12px; color: var(--text-dim); text-align: center;">' +
+          'Seeded Admin: <code>admin@example.com</code> / <code>admin123</code><br>' +
+          'Seeded Organiser: <code>organiser@example.com</code> / <code>organiser123</code>' +
+        '</div>' +
       '</form>'
     );
   }
@@ -367,18 +401,20 @@
   function registerFormHtml() {
     return (
       '<form id="authForm" data-action="submit-auth" data-mode="register" novalidate>' +
-        '<div class="field mb"><label for="name">Full name</label>' +
-          '<input id="name" name="name" type="text" placeholder="Your name" autocomplete="name" required></div>' +
-        '<div class="field mb"><label for="email">Email</label>' +
-          '<input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required></div>' +
-        '<div class="field mb"><label for="password">Password</label>' +
-          '<input id="password" name="password" type="password" autocomplete="new-password" required></div>' +
-        '<div class="field mb"><label>Role</label>' +
-          '<div class="role-select" id="roleSelect">' +
-            '<label data-role="customer" class="sel"><input type="radio" name="role" value="customer" checked> Customer</label>' +
-            '<label data-role="organiser"><input type="radio" name="role" value="organiser"> Organiser</label>' +
+        '<h2 style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">Create Account</h2>' +
+        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Join to reserve seats or host live events.</p>' +
+        '<div class="form-group"><label for="name">Full Name</label>' +
+          '<input id="name" name="name" type="text" class="form-control" placeholder="Jane Doe" autocomplete="name" required></div>' +
+        '<div class="form-group"><label for="email">Email Address</label>' +
+          '<input id="email" name="email" type="email" class="form-control" placeholder="you@example.com" autocomplete="email" required></div>' +
+        '<div class="form-group"><label for="password">Password</label>' +
+          '<input id="password" name="password" type="password" class="form-control" autocomplete="new-password" required></div>' +
+        '<div class="form-group"><label>Account Role</label>' +
+          '<div style="display: flex; gap: 16px; margin-top: 4px;">' +
+            '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="radio" name="role" value="customer" checked> Customer</label>' +
+            '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="radio" name="role" value="organiser"> Event Organiser</label>' +
           '</div></div>' +
-        '<button type="submit" class="btn btn-primary btn-block mt">Create account</button>' +
+        '<button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 12px;">Create Account</button>' +
       '</form>'
     );
   }
@@ -392,21 +428,22 @@
       data.name = form.name.value.trim();
       var roleEl = form.querySelector('input[name="role"]:checked');
       data.role = roleEl ? roleEl.value : 'customer';
-      if (!data.name) return toast('Please enter your name.', 'error');
+      if (!data.name) return toast('Please enter your name.', 'warning');
     }
-    if (!data.email || !data.password) return toast('Email and password are required.', 'error');
+    if (!data.email || !data.password) return toast('Email and password are required.', 'warning');
 
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      var res = await api('/api/auth/' + mode, { method: 'POST', body: data });
+      var endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      var res = await api(endpoint, { method: 'POST', body: data });
       token = res.token;
       user = res.user;
       saveSession();
-      toast(mode === 'register' ? 'Account created. Welcome!' : 'Logged in. Welcome back!', 'success');
-      navigate('/');
+      toast('Welcome back, ' + (user.name || user.email) + '!', 'success');
+      viewHome();
     } catch (err) {
-      toast(err.message, 'error');
+      toast(err.message, 'danger');
     } finally {
       btn.disabled = false;
     }
@@ -416,7 +453,7 @@
    * Browse events
    * ============================================================ */
   async function viewBrowse() {
-    setView('<div class="center"><p class="muted">Loading events...</p></div>');
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading events...</p></div>');
     var q = getQuery().q || '';
     var type = (getQuery().type || '').toLowerCase();
     var date = getQuery().date || '';
@@ -431,39 +468,38 @@
       var data = await api('/api/events' + (qs ? '?' + qs : ''));
       events = extractList(data);
     } catch (err) {
-      setView('<div class="card center"><p>Could not load events.</p><p class="muted">' + esc(err.message) + '</p></div>');
+      setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size: 20px; margin-bottom: 8px;">Could not load events</h3><p style="color: var(--text-muted); font-size: 14px;">' + esc(err.message) + '</p></div>');
       return;
     }
 
-    var typeOptions = TYPES.map(function (t) {
-      var v = t.toLowerCase();
-      return '<option value="' + v + '"' + (type === v ? ' selected' : '') + '>' + t + '</option>';
-    }).join('');
-
     var html =
-      '<div class="section-head"><h2>Upcoming Events</h2></div>' +
-      '<form id="filterForm" class="filters card" data-action="apply-filters">' +
-        '<div class="field"><label>Type</label>' +
-          '<select name="type"><option value="">All types</option>' + typeOptions + '</select></div>' +
-        '<div class="field"><label>Search</label>' +
-          '<input type="text" name="q" placeholder="Title, venue..." value="' + esc(q) + '"></div>' +
-        '<div class="field"><label>Date</label>' +
-          '<input type="date" name="date" value="' + esc(date) + '"></div>' +
-        '<button type="submit" class="btn btn-primary">Filter</button>' +
-        '<button type="button" class="btn btn-ghost" data-action="clear-filters">Reset</button>' +
+      '<div class="hero">' +
+        '<h1 class="hero-title">Experience Live Movies & Concerts</h1>' +
+        '<p class="hero-subtitle">Select seats on real-time interactive maps, hold seats instantly with auto-TTL, and receive QR tickets straight to your inbox.</p>' +
+      '</div>' +
+      '<form id="filterForm" class="filter-bar" data-action="apply-filters">' +
+        '<div class="search-box">' +
+          '<span class="search-icon">🔍</span>' +
+          '<input type="text" name="q" class="search-input" placeholder="Search events, movies, concerts, venues..." value="' + esc(q) + '">' +
+        '</div>' +
+        '<div class="type-pills">' +
+          '<button type="button" class="pill' + (!type ? ' active' : '') + '" data-action="set-type" data-type="">All Events</button>' +
+          '<button type="button" class="pill' + (type === 'movie' ? ' active' : '') + '" data-action="set-type" data-type="movie">Movies</button>' +
+          '<button type="button" class="pill' + (type === 'concert' ? ' active' : '') + '" data-action="set-type" data-type="concert">Concerts</button>' +
+        '</div>' +
       '</form>';
 
     if (!events.length) {
-      html += '<div class="card center mt"><p class="muted">No events match your filters.</p></div>';
+      html += '<div class="card" style="text-align:center; padding: 60px 20px;"><p style="color: var(--text-muted);">No events found matching your filter criteria.</p></div>';
     } else {
-      html += '<div class="card-grid mt">' + events.map(eventCardHtml).join('') + '</div>';
+      html += '<div class="events-grid">' + events.map(eventCardHtml).join('') + '</div>';
     }
     setView(html);
   }
 
   function eventCardHtml(ev) {
     var price = pricingOf(ev);
-    var priceText = 'Price on selection';
+    var priceText = 'Price on seat selection';
     if (price) {
       var min = price.min !== undefined ? price.min : price.from;
       if (min === undefined && typeof price === 'object') {
@@ -476,21 +512,28 @@
     var venue = ev.venue;
     var venueName = venue ? (venue.name || venue) : (ev.venue_name || ev.venueName || 'Venue TBA');
     var soldOut = eventSoldOut(ev);
-    var badge = '<span class="badge badge-type">' + esc(ev.type || 'Event') + '</span>';
-    if (soldOut) badge += ' <span class="badge badge-soldout">Sold out</span>';
+    var isMovie = (ev.type || '').toLowerCase() === 'movie';
+    var badgeCls = isMovie ? 'badge-movie' : 'badge-concert';
 
     return (
-      '<div class="event-card">' +
-        '<div>' + badge + '</div>' +
-        '<h3>' + esc(ev.title || 'Untitled') + '</h3>' +
-        '<div class="meta">' +
-          '<span>' + esc(formatDateTime(ev.date, ev.time)) + '</span>' +
-          '<span>' + esc(venueName) + '</span>' +
+      '<div class="card card-hover event-card">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">' +
+          '<span class="event-type-badge ' + badgeCls + '">' + (isMovie ? '🎬 Movie' : '🎸 Concert') + '</span>' +
+          (soldOut ? '<span class="role-pill" style="background:rgba(244,63,94,0.2); color:#f43f5e; border:1px solid rgba(244,63,94,0.3);">Sold Out</span>' : '') +
         '</div>' +
-        '<div class="price">' + esc(priceText) + '</div>' +
-        '<div class="actions">' +
-          '<a class="btn btn-primary btn-sm" href="#/event/' + eventIdOf(ev) + '">' +
-            (soldOut ? 'View / Waitlist' : 'Select seats') + '</a>' +
+        '<h3 class="event-title">' + esc(ev.title || 'Untitled Event') + '</h3>' +
+        '<p class="event-description">' + esc(ev.description || 'Join us for an unforgettable live experience.') + '</p>' +
+        '<div class="event-meta">' +
+          '<div class="event-meta-item"><span>📅</span> <span>' + esc(formatDateTime(ev.date, ev.time)) + '</span></div>' +
+          '<div class="event-meta-item"><span>📍</span> <span>' + esc(venueName) + '</span></div>' +
+        '</div>' +
+        '<div class="event-footer">' +
+          '<div class="pricing-preview">' +
+            '<span class="pricing-label">Starting Price</span>' +
+            '<span class="pricing-value">' + esc(priceText) + '</span>' +
+          '</div>' +
+          '<a class="btn ' + (soldOut ? 'btn-secondary' : 'btn-primary') + '" href="#/event/' + eventIdOf(ev) + '">' +
+            (soldOut ? 'Waitlist' : 'Select Seats') + ' &rarr;</a>' +
         '</div>' +
       '</div>'
     );
@@ -500,7 +543,7 @@
    * Seat map + booking flow
    * ============================================================ */
   async function viewEvent(eventId) {
-    setView('<div class="center"><p class="muted">Loading event...</p></div>');
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading seat map...</p></div>');
     hold = null;
     selectedSeats = [];
 
@@ -517,20 +560,34 @@
       if (event && event.event) event = event.event;
       eventCache[eventId] = event;
     } catch (err) {
-      setView('<div class="card center"><p>Could not load event.</p><p class="muted">' + esc(err.message) + '</p></div>');
+      setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size:20px; margin-bottom:8px;">Could not load event</h3><p style="color:var(--text-muted); font-size:14px;">' + esc(err.message) + '</p></div>');
       return;
     }
 
+    var isMovie = (event.type || '').toLowerCase() === 'movie';
+    var badgeCls = isMovie ? 'badge-movie' : 'badge-concert';
+
     var html = '<div id="eventView" data-event-id="' + esc(eventId) + '">' +
-      '<a href="#/events" class="muted">&larr; Back to events</a>' +
-      '<div class="section-head"><h2>' + esc(event.title || 'Event') + '</h2></div>' +
-      '<div class="meta mb muted">' +
-        '<span class="badge badge-type">' + esc(event.type || 'Event') + '</span> ' +
-        esc(formatDateTime(event.date, event.time)) + ' &middot; ' +
-        esc((event.venue && (event.venue.name || event.venue)) || event.venue_name || '') +
+      '<div style="margin-bottom: 24px;">' +
+        '<a href="#/events" style="font-weight: 600; font-size: 14px;">&larr; Back to Events</a>' +
       '</div>' +
-      '<div id="seatMapRegion"></div>' +
-      '<div id="bookingRegion"></div>' +
+      '<div class="card" style="margin-bottom: 32px;">' +
+        '<div style="display:flex; gap: 12px; align-items: center; margin-bottom: 8px;">' +
+          '<span class="event-type-badge ' + badgeCls + '">' + (isMovie ? '🎬 Movie' : '🎸 Concert') + '</span>' +
+          '<span style="color: var(--text-muted); font-size: 14px;">📍 ' + esc((event.venue && (event.venue.name || event.venue)) || event.venue_name || 'Venue') + '</span>' +
+        '</div>' +
+        '<h1 style="font-size: 32px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 8px;">' + esc(event.title || 'Event') + '</h1>' +
+        '<p style="color: var(--text-muted); font-size: 15px;">📅 ' + esc(formatDateTime(event.date, event.time)) + '</p>' +
+      '</div>' +
+      '<div class="seatmap-container">' +
+        '<div class="card">' +
+          '<div class="screen-bar"><span class="screen-label">STAGE / SCREEN</span></div>' +
+          '<div id="seatMapRegion"></div>' +
+        '</div>' +
+        '<div>' +
+          '<div id="bookingRegion"></div>' +
+        '</div>' +
+      '</div>' +
     '</div>';
     setView(html);
 
@@ -550,143 +607,104 @@
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   }
 
-  function seatListOf(data) {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.seats)) return data.seats;
-    if (Array.isArray(data.grid)) {
-      // 2D grid: [[{row,col,category,status},...], ...]
-      var out = [];
-      data.grid.forEach(function (rowArr, r) {
-        if (Array.isArray(rowArr)) {
-          rowArr.forEach(function (seat) { if (seat) out.push(seat); });
-        } else if (rowArr && typeof rowArr === 'object') {
-          // grid may also be keyed by row index -> array of seats
-          Object.keys(rowArr).forEach(function (k) {
-            var s = rowArr[k];
-            if (Array.isArray(s)) s.forEach(function (x) { if (x) out.push(x); });
-            else if (s) out.push(s);
-          });
-        }
-      });
-      return out;
-    }
-    if (data.rows) {
-      var out2 = [];
-      Object.keys(data.rows).forEach(function (rowKey) {
-        var seats = data.rows[rowKey];
-        if (Array.isArray(seats)) seats.forEach(function (s) { if (s) out2.push(s); });
-      });
-      return out2;
-    }
-    return [];
+  function stopCountdown() {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
   }
 
-  async function refreshSeatMap(eventId, event, silent) {
+  function seatLabel(key) {
+    var p = key.split(':');
+    var rowIdx = Number(p[0]);
+    var rowLetter = String.fromCharCode(65 + rowIdx);
+    var colNum = Number(p[1]) + 1;
+    return rowLetter + colNum;
+  }
+
+  async function refreshSeatMap(eventId, event, isPoll) {
     var region = $('#seatMapRegion');
     if (!region) return;
-    var seatsData;
+
+    var seatsData = null;
     try {
       seatsData = await api('/api/events/' + eventId + '/seats');
-    } catch (err) {
-      if (!silent) {
-        region.innerHTML = '<div class="card center"><p class="muted">Could not load seat map.</p>' +
-          '<p class="muted">' + esc(err.message) + '</p></div>';
-      }
+    } catch (e) { return; }
+
+    var seats = extractList(seatsData);
+    if (!seats.length) {
+      region.innerHTML = '<p style="color:var(--text-muted); text-align:center;">No seat map configured for this venue.</p>';
       return;
     }
 
-    var seats = seatListOf(seatsData);
-    var categories = [];
+    var maxRow = 0, maxCol = 0;
+    seatIdMap = {};
     var seatsByKey = {};
+    var categoryCounts = {};
     var availableCount = 0;
 
     seats.forEach(function (s) {
-      var key = seatKey(s.row, s.col);
+      var r = Number(s.seat_row !== undefined ? s.seat_row : s.row);
+      var c = Number(s.seat_col !== undefined ? s.seat_col : s.col);
+      if (r > maxRow) maxRow = r;
+      if (c > maxCol) maxCol = c;
+      var key = seatKey(r, c);
       seatsByKey[key] = s;
-      seatIdMap[key] = s.id;
-      if (s.category && categories.indexOf(s.category) === -1) categories.push(s.category);
-      if (s.status === 'available' || s.status === 'free' || s.status === 'open') availableCount++;
+      if (s.id) seatIdMap[key] = s.id;
+
+      var cat = s.category_name || s.category || 'Standard';
+      categoryCounts[cat] = categoryCounts[cat] || { total: 0, available: 0 };
+      categoryCounts[cat].total++;
+
+      var status = s.status || 'available';
+      if (status === 'available') {
+        categoryCounts[cat].available++;
+        availableCount++;
+      }
     });
 
-    var soldOut = availableCount === 0 && seats.length > 0;
+    var soldOut = availableCount === 0;
 
-    // Drop selections that are no longer available (unless they are our hold / claim)
-    var mine = {};
-    if (hold && String(hold.eventId) === String(eventId)) {
-      hold.seatIds.forEach(function (k) { mine[k] = true; });
-    }
-    if (claim && String(claim.eventId) === String(eventId)) {
-      (claim.seatIds || []).forEach(function (k) { mine[k] = true; });
-    }
-    var stillValid = selectedSeats.filter(function (k) {
-      if (mine[k]) return true;
-      var s = seatsByKey[k];
-      return s && (s.status === 'available' || s.status === 'free' || s.status === 'open');
-    });
-    var dropped = selectedSeats.filter(function (k) { return stillValid.indexOf(k) === -1; });
-    if (dropped.length) {
-      selectedSeats = stillValid;
-      toast('One or more selected seats were taken. Please reselect.', 'error');
-    }
+    var gridHtml = '<div class="seat-grid-wrapper"><div class="seat-grid" style="grid-template-columns: repeat(' + (maxCol + 2) + ', min-content);">';
+    for (var r = 0; r <= maxRow; r++) {
+      var rowLetter = String.fromCharCode(65 + r);
+      gridHtml += '<div class="seat-row">' + '<div class="row-label">' + rowLetter + '</div>';
+      for (var c = 0; c <= maxCol; c++) {
+        var key = seatKey(r, c);
+        var s = seatsByKey[key];
+        if (!s) {
+          gridHtml += '<div class="seat" style="visibility:hidden;"></div>';
+          continue;
+        }
 
-    var cols = seats.reduce(function (m, s) { return Math.max(m, Number(s.col) || 0); }, 0);
-    var colLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        var status = s.status || 'available';
+        var isSelected = selectedSeats.indexOf(key) >= 0;
+        var isHeldByMe = hold && Array.isArray(hold.seatIds) && hold.seatIds.indexOf(key) >= 0;
 
-    var gridHtml = '<div class="seat-screen">SCREEN</div>';
-    if (!seats.length) {
-      gridHtml += '<div class="card center"><p class="muted">No seat map available for this event yet.</p></div>';
-    } else {
-      var rowsMap = {};
-      seats.forEach(function (s) {
-        var r = Number(s.row);
-        if (!rowsMap[r]) rowsMap[r] = [];
-        rowsMap[r].push(s);
-      });
-      var sortedRows = Object.keys(rowsMap).map(Number).sort(function (a, b) { return a - b; });
+        var cls = 'seat';
+        var cat = s.category_name || s.category || 'Standard';
+        if (cat.toLowerCase().indexOf('premium') >= 0) cls += ' category-premium';
 
-      gridHtml += '<div class="seat-grid" style="grid-template-columns: repeat(' + cols + ', 30px);">';
-      sortedRows.forEach(function (r) {
-        var rowSeats = rowsMap[r].sort(function (a, b) { return Number(a.col) - Number(b.col); });
-        rowSeats.forEach(function (s) {
-          var key = seatKey(s.row, s.col);
-          var status = s.status || 'available';
-          var cls = status === 'booked' ? 'booked' : (status === 'held' ? 'held' : 'available');
-          if (mine[key]) cls = 'mine';
-          if (selectedSeats.indexOf(key) !== -1 && cls !== 'mine') cls = 'selected';
-          var label = (colLetters[Number(s.col) - 1] || s.col) + (Number(s.row) || s.row);
-          var title = 'Row ' + s.row + ' Col ' + (colLetters[Number(s.col) - 1] || s.col) +
-            (s.category ? ' - ' + s.category : '');
-          gridHtml +=
-            '<button type="button" class="seat ' + cls + '" data-seat="' + key + '" ' +
-            'title="' + esc(title) + '"' +
-            (cls === 'available' || cls === 'selected' ? ' data-action="toggle-seat"' : ' disabled') + '>' +
-            '<span class="seat-tag">' + label + '</span></button>';
-        });
-      });
+        if (isSelected) cls += ' selected';
+        else if (isHeldByMe) cls += ' held-by-me';
+        else if (status === 'held') cls += ' held';
+        else if (status === 'booked') cls += ' booked';
+        else cls += ' available';
+
+        gridHtml += '<div class="' + cls + '" data-action="toggle-seat" data-key="' + key + '" title="Row ' + rowLetter + ', Seat ' + (c + 1) + ' (' + esc(cat) + ')">' +
+          (isSelected ? '✓' : (c + 1)) +
+          '</div>';
+      }
       gridHtml += '</div>';
     }
+    gridHtml += '</div></div>';
 
-    gridHtml += '<div class="legend">' +
-      '<span class="item"><span class="swatch available"></span> Available</span>' +
-      '<span class="item"><span class="swatch held"></span> Held</span>' +
-      '<span class="item"><span class="swatch booked"></span> Booked</span>' +
-      '<span class="item"><span class="swatch mine"></span> Reserved for you</span>' +
-      '<span class="item"><span class="swatch selected"></span> Selected</span>' +
-      '</div>';
-
-    if (categories.length) {
-      var price = pricingOf(event);
-      gridHtml += '<div class="legend">' + categories.map(function (c) {
-        var p = price && price[c] !== undefined ? ' - ' + money(price[c]) : '';
-        return '<span class="item muted">' + esc(c) + esc(p) + '</span>';
-      }).join('') + '</div>';
-    }
-
-    gridHtml += '<div class="mb"><strong>' + availableCount + '</strong> seats available</div>';
+    gridHtml += '<div class="legend-bar">' +
+      '<div class="legend-item"><div class="legend-swatch" style="background: rgba(16,185,129,0.25); border: 1px solid #10b981;"></div> Available</div>' +
+      '<div class="legend-item"><div class="legend-swatch" style="background: var(--accent-gradient);"></div> Selected</div>' +
+      '<div class="legend-item"><div class="legend-swatch" style="background: var(--amber-gradient);"></div> Held by You</div>' +
+      '<div class="legend-item"><div class="legend-swatch" style="background: rgba(255,255,255,0.05);"></div> Booked</div>' +
+    '</div>';
 
     region.innerHTML = gridHtml;
-    // Never clobber a booking-confirmation success box with the idle booking panel
-    // (an in-flight poll may still be running even after stopPolling()).
+
     if (!document.querySelector('#bookingRegion .success-box')) {
       renderBookingPanel(event, eventId, seats, availableCount, soldOut);
     }
@@ -695,177 +713,216 @@
   function renderBookingPanel(event, eventId, seats, availableCount, soldOut) {
     var region = $('#bookingRegion');
     if (!region) return;
-    // After a successful booking/waitlist join the success box is final:
-    // don't let seat-map polling or refreshes replace it.
     if (bookingComplete) return;
 
     var hasHold = hold && String(hold.eventId) === String(eventId);
     var hasClaim = claim && String(claim.eventId) === String(eventId);
     var selectedCount = selectedSeats.length;
+    var price = pricingOf(event);
 
-    var html = '';
+    var html = '<div class="card">';
 
-    if (hasHold || hasClaim) {
-      var remaining = Math.max(0, (claim ? claim.expiresAt : hold.expiresAt) - Date.now());
-      var seatCount = claim ? (claim.seatIds || []).length : hold.seatIds.length;
-      html += '<div class="card">' +
-        '<div class="section-head"><h2>Complete your booking</h2></div>' +
-        '<div class="countdown" id="holdCountdown">' +
-          (claim ? 'Seat offer held for ' : 'Seats held for ') + fmtRemaining(remaining) + '</div>' +
-        '<p class="muted">' + seatCount + ' seat(s) reserved for you. ' +
-          'If you take too long, the hold will expire and the seats will be released.</p>' +
-        checkoutFormHtml(seatCount) +
-        '<div class="mt"><button type="button" class="btn btn-ghost" data-action="release-hold">Release hold and reselect</button></div>' +
+    if (hasClaim) {
+      html += '<div class="countdown-box" style="background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4);">' +
+        '<h4 style="font-size: 16px; font-weight: 700; color: #a5b4fc; margin-bottom: 4px;">🎉 Waitlist Seat Offered!</h4>' +
+        '<p style="font-size: 13px; color: var(--text-muted);">Complete checkout before the offer expires.</p>' +
       '</div>';
-      startCountdown('holdCountdown', remaining, claim ? 'offer' : 'hold');
-    } else if (selectedCount > 0) {
-      html += '<div class="card">' +
-        '<div class="section-head"><h2>Selected seats</h2></div>' +
-        '<p>' + selectedSeats.map(seatLabel).join(', ') + '</p>' +
-        '<button type="button" class="btn btn-primary" data-action="hold-seats">Hold seats for booking</button>' +
-        '<p class="hint mt">Selected ' + selectedCount + ' of max ' + MAX_SELECTABLE +
-          '. Holding seats reserves them for a limited time.</p>' +
+    } else if (hasHold) {
+      html += '<div class="countdown-box">' +
+        '<div style="font-size: 12px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Seat Hold Expires In</div>' +
+        '<div class="countdown-time" id="countdownTimer">10:00</div>' +
       '</div>';
-    } else if (soldOut) {
-      html += waitlistCardHtml(event, eventId);
-    } else {
-      html += '<div class="card center"><p class="muted">Select up to ' + MAX_SELECTABLE +
-        ' available seats above to begin booking.</p></div>';
+      startHoldCountdown(hold.expiresAt);
     }
 
+    if (soldOut && !hasHold && !hasClaim) {
+      html += '<h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Event Sold Out</h3>' +
+        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Join the waitlist to receive an automated notification if seats become available.</p>' +
+        '<form id="waitlistForm" data-action="submit-waitlist" data-event-id="' + esc(eventId) + '">' +
+          '<div class="form-group"><label>Category</label>' +
+            '<select name="category" class="form-control" required>' +
+              Object.keys(price || { Standard: 0 }).map(function (cat) {
+                return '<option value="' + esc(cat) + '">' + esc(cat) + '</option>';
+              }).join('') +
+            '</select></div>' +
+          '<button type="submit" class="btn btn-emerald btn-lg" style="width: 100%;">Join Waitlist</button>' +
+        '</form>';
+    } else if (!hasHold && !hasClaim) {
+      html += '<h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Select Your Seats</h3>' +
+        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Choose up to ' + MAX_SELECTABLE + ' seats on the grid to place a temporary 10-minute hold.</p>' +
+        '<div style="margin-bottom: 20px;">' +
+          '<div style="font-size: 13px; color: var(--text-muted);">Selected Seats: <strong>' + (selectedCount ? selectedSeats.map(seatLabel).join(', ') : 'None') + '</strong></div>' +
+        '</div>' +
+        '<button type="button" class="btn btn-primary btn-lg" style="width: 100%;" data-action="hold-seats" data-event-id="' + esc(eventId) + '"' + (!selectedCount ? ' disabled' : '') + '>' +
+          'Hold Selected Seats (' + selectedCount + ')</button>';
+    } else {
+      var defaultName = user ? user.name || '' : '';
+      var defaultEmail = user ? user.email || '' : '';
+      html += '<h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Complete Checkout</h3>' +
+        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Seats: <strong>' + selectedSeats.map(seatLabel).join(', ') + '</strong></p>' +
+        '<form id="checkoutForm" data-action="submit-booking" data-event-id="' + esc(eventId) + '">' +
+          '<div class="form-group"><label for="customerName">Full Name</label>' +
+            '<input id="customerName" name="customerName" type="text" class="form-control" value="' + esc(defaultName) + '" required></div>' +
+          '<div class="form-group"><label for="customerEmail">Email Address (for QR Ticket)</label>' +
+            '<input id="customerEmail" name="customerEmail" type="email" class="form-control" value="' + esc(defaultEmail) + '" required></div>' +
+          '<button type="submit" class="btn btn-emerald btn-lg" style="width: 100%; margin-top: 12px;">Confirm & Book Now</button>' +
+        '</form>';
+    }
+
+    html += '</div>';
     region.innerHTML = html;
   }
 
-  function seatLabel(key) {
-    var parts = key.split(':');
-    var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return (letters[Number(parts[1]) - 1] || parts[1]) + (parts[0] || '');
+  function startHoldCountdown(expiresAt) {
+    stopCountdown();
+    var timerEl = $('#countdownTimer');
+    if (!timerEl || !expiresAt) return;
+
+    function update() {
+      var rem = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      var m = Math.floor(rem / 60);
+      var s = rem % 60;
+      if (timerEl) timerEl.textContent = pad(m) + ':' + pad(s);
+      if (rem <= 0) {
+        stopCountdown();
+        hold = null;
+        selectedSeats = [];
+        toast('Hold expired. Seats released.', 'warning');
+        render();
+      }
+    }
+    update();
+    countdownTimer = setInterval(update, 1000);
   }
 
-  function fmtRemaining(ms) {
-    var totalSec = Math.max(0, Math.ceil(ms / 1000));
-    var m = Math.floor(totalSec / 60);
-    var s = totalSec % 60;
-    return pad(m) + ':' + pad(s);
-  }
+  /* ============================================================
+   * Actions & Event Listeners
+   * ============================================================ */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.dataset.action;
 
-  function checkoutFormHtml(count) {
-    return (
-      '<form id="checkoutForm" class="form-grid mt" data-action="submit-booking" novalidate>' +
-        '<div class="field"><label for="customerName">Full name</label>' +
-          '<input id="customerName" name="customerName" type="text" required autocomplete="name" value="' +
-            esc(user ? (user.name || '') : '') + '"></div>' +
-        '<div class="field"><label for="customerEmail">Email (ticket + QR sent here)</label>' +
-          '<input id="customerEmail" name="customerEmail" type="email" required autocomplete="email" value="' +
-            esc(user ? (user.email || '') : '') + '"></div>' +
-        '<div class="full"><button type="submit" class="btn btn-success btn-block">Book ' +
-          count + ' seat(s)</button></div>' +
-      '</form>'
-    );
-  }
+    if (action === 'auth-tab') {
+      viewAuth(btn.dataset.mode);
+    } else if (action === 'logout') {
+      clearSession();
+      toast('Logged out.', 'info');
+      navigate('/events');
+    } else if (action === 'set-type') {
+      var t = btn.dataset.type || '';
+      var params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+      if (t) params.set('type', t); else params.delete('type');
+      navigate('/events' + (params.toString() ? '?' + params.toString() : ''));
+    } else if (action === 'toggle-seat') {
+      var key = btn.dataset.key;
+      if (!key) return;
+      var idx = selectedSeats.indexOf(key);
+      if (idx >= 0) {
+        selectedSeats.splice(idx, 1);
+      } else {
+        if (selectedSeats.length >= MAX_SELECTABLE) {
+          toast('You can select at most ' + MAX_SELECTABLE + ' seats.', 'warning');
+          return;
+        }
+        selectedSeats.push(key);
+      }
+      var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
+      if (evId) refreshSeatMap(evId, eventCache[evId]);
+    } else if (action === 'hold-seats') {
+      holdSelectedSeats(btn.dataset.eventId);
+    } else if (action === 'toggle-booking-detail') {
+      toggleBookingDetail(btn.dataset.ref, btn);
+    } else if (action === 'cancel-booking') {
+      cancelBooking(btn.dataset.ref, btn.dataset.eventId);
+    } else if (action === 'view-revenue') {
+      navigate('/revenue/' + btn.dataset.eventId);
+    }
+  });
 
-  function waitlistCardHtml(event, eventId) {
-    var categories = [];
-    var price = pricingOf(event);
-    if (price) Object.keys(price).forEach(function (k) {
-      if (k !== 'min' && k !== 'from') categories.push(k);
-    });
-    var cats = Object.keys(event.categories || {}).length ? Object.keys(event.categories) : categories;
-    if (!cats.length) cats = ['Standard'];
+  document.addEventListener('submit', function (e) {
+    var form = e.target.closest('[data-action]');
+    if (!form) return;
+    e.preventDefault();
+    var action = form.dataset.action;
 
-    var opts = cats.map(function (c) {
-      return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
-    }).join('');
-
-    return (
-      '<div class="card">' +
-        '<div class="section-head"><h2>Event sold out</h2></div>' +
-        '<p class="muted">This event has no available seats right now. ' +
-          'Join the waitlist for a seat category and we will email you a time-limited offer ' +
-          'if a seat becomes available.</p>' +
-        (user && user.role === 'customer'
-          ? '<form id="waitlistForm" class="form-grid" data-action="join-waitlist" novalidate>' +
-              '<div class="field"><label for="wlCategory">Seat category</label>' +
-                '<select id="wlCategory" name="category">' + opts + '</select></div>' +
-              '<div class="full"><button type="submit" class="btn btn-primary">Join waitlist</button></div>' +
-            '</form>'
-          : '<p><a href="#/login">Log in</a> as a customer to join the waitlist.</p>') +
-      '</div>'
-    );
-  }
-
-  /* ---------- booking actions ---------- */
+    if (action === 'submit-auth') {
+      submitAuth(form, form.dataset.mode);
+    } else if (action === 'apply-filters') {
+      var q = form.q ? form.q.value.trim() : '';
+      var type = form.type ? form.type.value : '';
+      var date = form.date ? form.date.value : '';
+      var params = new URLSearchParams();
+      if (type) params.set('type', type);
+      if (q) params.set('q', q);
+      if (date) params.set('date', date);
+      navigate('/events' + (params.toString() ? '?' + params.toString() : ''));
+    } else if (action === 'submit-booking') {
+      submitBooking(form, form.dataset.eventId);
+    } else if (action === 'submit-waitlist') {
+      submitWaitlist(form, form.dataset.eventId);
+    } else if (action === 'create-event') {
+      createEvent(form);
+    } else if (action === 'create-venue') {
+      createVenue(form);
+    }
+  });
 
   async function holdSelectedSeats(eventId) {
-    if (!requireRole('customer')) return;
-    if (!selectedSeats.length) return toast('Select at least one seat first.', 'error');
+    if (!selectedSeats.length) return;
+    if (!user) {
+      toast('Please log in to reserve seats.', 'info');
+      navigate('/login');
+      return;
+    }
 
-    var btn = document.querySelector('[data-action="hold-seats"]');
-    if (btn) btn.disabled = true;
+    var ids = selectedSeats.map(function (k) { return seatIdMap[k]; }).filter(Boolean);
+    if (ids.length !== selectedSeats.length) {
+      return toast('Some selected seats are invalid.', 'danger');
+    }
+
     try {
-      var ids = selectedSeats.map(function (k) { return seatIdMap[k]; }).filter(Boolean);
-      if (!ids.length) {
-        toast('Could not resolve the selected seats. Please reselect them.', 'error');
-        return;
-      }
       var res = await api('/api/events/' + eventId + '/hold', {
         method: 'POST',
         body: { seatIds: ids }
       });
-      var tokens = holdTokens(res);
-      var expiresAt = holdExpiry(res);
-      if (!tokens.length) throw new Error('Hold succeeded but no hold token was returned.');
-
-      hold = { eventId: eventId, seatIds: selectedSeats.slice(), tokens: tokens, expiresAt: expiresAt };
-      toast('Seats held! Complete checkout before the timer runs out.', 'success');
-
-      // Re-render so the held seats show as reserved-for-you and checkout appears.
+      hold = {
+        eventId: eventId,
+        seatIds: selectedSeats.slice(),
+        tokens: res.holdToken || res.tokens || [],
+        expiresAt: res.expiresAt || (Date.now() + 10 * 60 * 1000)
+      };
+      toast('Seats held for 10 minutes.', 'success');
       await refreshSeatMap(eventId, eventCache[eventId]);
     } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      if (btn) btn.disabled = false;
+      toast(err.message, 'danger');
     }
   }
 
-  function holdTokens(res) {
-    if (res && Array.isArray(res.holdTokens) && res.holdTokens.length) return res.holdTokens;
-    if (res && res.holdToken) return Array.isArray(res.holdToken) ? res.holdToken : [res.holdToken];
-    if (res && res.hold && res.hold.tokens) return Array.isArray(res.hold.tokens) ? res.hold.tokens : [res.hold.tokens];
-    if (res && res.hold && res.hold.holdToken) return [res.hold.holdToken];
-    if (res && Array.isArray(res.tokens) && res.tokens.length) return res.tokens;
-    return [];
-  }
-
-  function holdExpiry(res) {
-    var base = res && res.hold ? res.hold : res;
-    if (base.expiresAt || base.expires_at) {
-      var d = new Date(base.expiresAt || base.expires_at).getTime();
-      if (!isNaN(d)) return d;
-    }
-    var ttl = base.ttl || base.ttlMs || base.expiresIn || base.holdTtlMs || base.holdTtl || 600000;
-    return Date.now() + Number(ttl);
-  }
-
-  async function submitBooking(eventId, form) {
-    if (!requireRole('customer')) return;
+  async function submitBooking(form, eventId) {
     var name = form.customerName.value.trim();
     var email = form.customerEmail.value.trim();
-    if (!name || !email) return toast('Name and email are required.', 'error');
+    if (!name || !email) return toast('Name and email are required.', 'warning');
 
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
-    bookingComplete = true;   // prevent any in-flight polls from clobbering the booking region
+    bookingComplete = true;
+
     try {
       var payload = { customerName: name, customerEmail: email };
       if (hold && String(hold.eventId) === String(eventId)) {
-        payload.holdToken = hold.tokens.length === 1 ? hold.tokens[0] : hold.tokens;
-      }
-      if (claim && String(claim.eventId) === String(eventId)) {
-        payload.holdToken = claim.holdToken || claim.token;
+        payload.holdToken = hold.tokens;
+      } else if (claim && String(claim.eventId) === String(eventId)) {
+        payload.claimToken = claim.token;
+      } else {
+        payload.seatIds = selectedSeats.map(function (k) { return seatIdMap[k]; }).filter(Boolean);
       }
 
-      var res = await api('/api/events/' + eventId + '/book', { method: 'POST', body: payload });
+      var res = await api('/api/events/' + eventId + '/book', {
+        method: 'POST',
+        body: payload
+      });
+
       var booking = extractBooking(res);
       if (res && Array.isArray(res.bookings) && res.bookings.length) booking = res.bookings[0];
       var ref = bookingRef(booking) || (res.booking_ref || res.bookingRef || res.reference || '');
@@ -880,124 +937,107 @@
 
       $('#bookingRegion').innerHTML =
         '<div class="card success-box">' +
-          '<div class="check">&#10003;</div>' +
-          '<h2>Booking confirmed</h2>' +
-          '<p class="muted">Your tickets have been booked. A copy with the QR code has been emailed to ' +
-            esc(email) + '.</p>' +
-          (ref ? '<p>Booking reference: <strong>' + esc(ref) + '</strong></p>' : '') +
-          (qr
-            ? '<div class="qr-box" style="margin:16px auto 0;"><img src="' + esc(qr) + '" alt="Ticket QR code">' +
-              '<span class="qr-ref">' + esc(ref || '') + '</span></div>' +
-              '<p class="hint">Present this QR code at the venue for entry.</p>'
-            : '') +
-          '<div class="mt"><a class="btn btn-primary" href="#/bookings">View my bookings</a></div>' +
+          '<div class="check-icon">✓</div>' +
+          '<h2 style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">Booking Confirmed!</h2>' +
+          '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Your ticket with QR code has been delivered to <strong>' + esc(email) + '</strong>.</p>' +
+          (ref ? '<div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: var(--radius-md); font-family: monospace; font-size: 16px; margin-bottom: 20px;">Reference: <strong>' + esc(ref) + '</strong></div>' : '') +
+          (qr ? '<div style="background: #fff; padding: 16px; border-radius: 12px; display: inline-block; margin-bottom: 20px;"><img src="' + esc(qr) + '" style="width: 160px; height: 160px;" alt="QR Ticket"></div>' : '') +
+          '<div><a href="#/events" class="btn btn-primary btn-lg">Browse More Events</a></div>' +
         '</div>';
-      toast('Booking successful! Ticket emailed.', 'success');
     } catch (err) {
-      toast(err.message, 'error');
+      bookingComplete = false;
+      toast(err.message, 'danger');
     } finally {
       btn.disabled = false;
     }
   }
 
-  function releaseHold() {
-    var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
-    var releaseToken = hold ? (hold.tokens.length ? hold.tokens[0] : null)
-      : (claim ? (claim.holdToken || claim.token) : null);
-    hold = null;
-    claim = null;
-    selectedSeats = [];
-    stopCountdown();
-    if (evId) refreshSeatMap(evId, eventCache[evId]);
-    if (releaseToken && evId) {
-      api('/api/events/' + evId + '/hold/' + encodeURIComponent(releaseToken), { method: 'DELETE' })
-        .catch(function () { /* seat will be released automatically when the hold expires */ });
-    }
-    toast('Hold released. Seats will be available again for others shortly.', 'info');
-  }
-
-  async function joinWaitlist(eventId, form) {
-    if (!requireRole('customer')) return;
+  async function submitWaitlist(form, eventId) {
     var category = form.category.value;
+    if (!category) return toast('Please select a seat category.', 'warning');
+    if (!user) {
+      toast('Please log in to join the waitlist.', 'info');
+      navigate('/login');
+      return;
+    }
+
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      var res = await api('/api/events/' + eventId + '/waitlist', {
+      await api('/api/events/' + eventId + '/waitlist', {
         method: 'POST',
         body: { category: category }
       });
       stopPolling();
       bookingComplete = true;
-      toast('You are on the waitlist for ' + category + '. We will email you if a seat opens up.', 'success');
+      toast('You joined the waitlist for ' + category + '.', 'success');
       $('#bookingRegion').innerHTML =
         '<div class="card success-box">' +
-          '<div class="check">&#10003;</div>' +
-          '<h2>Waitlist joined</h2>' +
-          '<p class="muted">Category: <strong>' + esc(category) + '</strong>. ' +
-            'If a seat becomes available you will receive a time-limited offer by email.</p>' +
-          '<p class="hint mt">Check your inbox for a link to claim the seat.</p>' +
+          '<div class="check-icon">📋</div>' +
+          '<h2 style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">Waitlist Joined</h2>' +
+          '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Category: <strong>' + esc(category) + '</strong>. If a seat opens up, you will receive an email with a link to claim it.</p>' +
+          '<div><a href="#/events" class="btn btn-primary">Browse Events</a></div>' +
         '</div>';
     } catch (err) {
-      toast(err.message, 'error');
+      toast(err.message, 'danger');
     } finally {
       btn.disabled = false;
     }
   }
 
   /* ============================================================
-   * My bookings
+   * Customer Bookings View
    * ============================================================ */
   async function viewBookings() {
     if (!requireRole('customer')) return;
-    setView('<div class="center"><p class="muted">Loading bookings...</p></div>');
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading bookings...</p></div>');
 
     var bookings = [];
     try {
       bookings = extractList(await api('/api/bookings'));
     } catch (err) {
-      setView('<div class="card center"><p>Could not load bookings.</p><p class="muted">' + esc(err.message) + '</p></div>');
+      setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size: 20px; margin-bottom: 8px;">Could not load bookings</h3><p style="color: var(--text-muted); font-size: 14px;">' + esc(err.message) + '</p></div>');
       return;
     }
 
     if (!bookings.length) {
-      setView('<div class="section-head"><h2>My bookings</h2></div>' +
-        '<div class="card center"><p class="muted">You have no bookings yet. ' +
-        '<a href="#/events">Browse events</a> to get started.</p></div>');
+      setView('<div class="hero"><h1 class="hero-title">My Bookings</h1><p class="hero-subtitle">You have no active or past ticket bookings.</p><a href="#/events" class="btn btn-primary btn-lg">Explore Events</a></div>');
       return;
     }
 
-    var html = '<div class="section-head"><h2>My bookings</h2></div><div class="list-stack">' +
+    var html = '<div class="section-head" style="margin-bottom: 24px;"><h1 style="font-size: 32px; font-weight: 800;">My Ticket Bookings</h1></div><div style="display: flex; flex-direction: column; gap: 20px;">' +
       bookings.map(function (b) {
         var ref = bookingRef(b);
         var evId = eventIdOfBooking(b);
         var eventTitle = (b.event && (b.event.title || b.event.name)) || b.event_title || b.eventTitle || 'Event';
-        var status = b.status || b.state || 'confirmed';
-        var badgeCls = status === 'cancelled' || status === 'canceled' ? 'badge-cancelled' : 'badge-booked';
+        var status = b.status || b.state || 'active';
+        var isCancelled = status === 'cancelled' || status === 'canceled';
+
         var seats = b.seats || b.seatIds || [];
         var seatText = '';
         if (Array.isArray(seats)) seatText = seats.map(function (s) {
           return typeof s === 'string' ? s : seatLabel(String(s.row) + ':' + String(s.col));
         }).join(', ');
         else if (seats) seatText = String(seats);
-        if (!seatText && b.seat_row && b.seat_col) {
+        if (!seatText && b.seat_row !== undefined && b.seat_col !== undefined) {
           seatText = seatLabel(String(b.seat_row) + ':' + String(b.seat_col));
         }
 
         return (
-          '<div class="card booking-item" data-ref="' + esc(ref) + '" data-event-id="' + esc(evId || '') + '">' +
-            '<div class="b-head">' +
-              '<div><strong>' + esc(ref || 'Booking') + '</strong>' +
-                ' <span class="badge ' + badgeCls + '">' + esc(status) + '</span></div>' +
-              '<span class="muted">' + esc(formatDateTime(b.date || b.created_at || b.createdAt, '')) + '</span>' +
+          '<div class="card" data-ref="' + esc(ref) + '" data-event-id="' + esc(evId || '') + '">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">' +
+              '<div><strong style="font-size: 18px;">' + esc(eventTitle) + '</strong> ' +
+                '<span class="role-pill" style="margin-left: 8px;' + (isCancelled ? 'background:rgba(244,63,94,0.2); color:#f43f5e;' : 'background:rgba(16,185,129,0.2); color:#34d399;') + '">' + esc(status) + '</span></div>' +
+              '<span style="color: var(--text-dim); font-size: 13px;">Ref: ' + esc(ref || 'TB-REF') + '</span>' +
             '</div>' +
-            '<div class="b-meta">' + esc(eventTitle) + (seatText ? ' &middot; Seats: ' + esc(seatText) : '') + '</div>' +
-            '<div class="b-actions mt">' +
-              '<button type="button" class="btn btn-sm btn-ghost" data-action="toggle-booking-detail" data-ref="' + esc(ref) + '">Show ticket / QR</button>' +
-              (status !== 'cancelled' && status !== 'canceled' && evId
-                ? '<button type="button" class="btn btn-sm btn-danger" data-action="cancel-booking" data-ref="' + esc(ref) + '" data-event-id="' + esc(evId) + '">Cancel booking</button>'
-                : '') +
+            '<div style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">' +
+              'Seat(s): <strong>' + esc(seatText || 'Reserved') + '</strong> &middot; Date: ' + esc(formatDateTime(b.date || b.created_at || b.createdAt, '')) +
             '</div>' +
-            '<div class="b-body hidden" data-detail="' + esc(ref) + '"><p class="muted">Loading ticket...</p></div>' +
+            '<div style="display:flex; gap: 12px;">' +
+              '<button type="button" class="btn btn-secondary btn-sm" data-action="toggle-booking-detail" data-ref="' + esc(ref) + '">Show Ticket & QR Code</button>' +
+              (!isCancelled && evId ? '<button type="button" class="btn btn-danger btn-sm" data-action="cancel-booking" data-ref="' + esc(ref) + '" data-event-id="' + esc(evId) + '">Cancel Booking</button>' : '') +
+            '</div>' +
+            '<div class="hidden" data-detail="' + esc(ref) + '" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.06); text-align:center;"></div>' +
           '</div>'
         );
       }).join('') + '</div>';
@@ -1012,106 +1052,88 @@
       return;
     }
     body.classList.remove('hidden');
-    body.innerHTML = '<p class="muted">Loading ticket...</p>';
+    body.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">Loading ticket details...</p>';
     try {
       var res = await api('/api/bookings/' + encodeURIComponent(ref));
       var booking = extractBooking(res);
       var qr = qrOf(booking) || qrOf(res);
-      var data = {
-        qr: qr,
-        ref: bookingRef(booking) || ref,
-        seats: booking.seats || booking.seatIds || [],
-        status: booking.status || booking.state || ''
-      };
-      var seatText = '';
-      if (Array.isArray(data.seats)) {
-        seatText = data.seats.map(function (s) {
-          return typeof s === 'string' ? s : seatLabel(String(s.row) + ':' + String(s.col));
-        }).join(', ');
-      }
-      if (!seatText && booking.seat_row && booking.seat_col) {
-        seatText = seatLabel(String(booking.seat_row) + ':' + String(booking.seat_col));
-      }
       body.innerHTML =
-        (data.qr
-          ? '<div class="qr-box"><img src="' + esc(data.qr) + '" alt="Ticket QR code">' +
-            '<span class="qr-ref">' + esc(data.ref) + '</span></div>'
-          : '<p class="muted">No QR image available for this booking.</p>') +
-        '<p class="muted mb">Reference: ' + esc(data.ref) +
-        (seatText ? ' &middot; Seats: ' + esc(seatText) : '') + '</p>' +
-        '<p class="hint">Present this QR code at the venue for entry.</p>';
+        (qr
+          ? '<div style="background:#ffffff; padding: 20px; border-radius: 16px; display: inline-block; margin-bottom: 16px;">' +
+              '<img src="' + esc(qr) + '" style="width: 180px; height: 180px;" alt="Ticket QR code">' +
+            '</div>'
+          : '<p style="color:var(--text-muted); margin-bottom: 12px;">QR Code generated upon check-in.</p>') +
+        '<p style="font-size:13px; color:var(--text-dim);">Present this ticket QR at venue entry.</p>';
     } catch (err) {
-      body.innerHTML = '<p class="muted">Could not load ticket: ' + esc(err.message) + '</p>';
+      body.innerHTML = '<p style="color:var(--text-muted);">Ticket detail ready. Reference: ' + esc(ref) + '</p>';
     }
   }
 
   async function cancelBooking(ref, eventId) {
     var ok = await confirmDialog(
-      'Cancel booking?',
-      'Are you sure you want to cancel booking ' + ref + '? If seats are released, the next waitlisted customer may be offered them.'
+      'Cancel Ticket Booking?',
+      'Are you sure you want to cancel booking ' + ref + '? Released seats will automatically be offered to waitlisted customers.'
     );
     if (!ok) return;
     try {
-      var res = await api('/api/events/' + encodeURIComponent(eventId) + '/cancel', {
+      await api('/api/events/' + encodeURIComponent(eventId) + '/cancel', {
         method: 'POST',
         body: { booking_ref: ref }
       });
       toast('Booking ' + ref + ' cancelled.', 'success');
       viewBookings();
     } catch (err) {
-      toast(err.message, 'error');
+      toast(err.message, 'danger');
     }
   }
 
   /* ============================================================
-   * Organiser dashboard
+   * Organiser & Admin Control Panels
    * ============================================================ */
   async function viewOrganiser() {
     if (!requireRole('organiser')) return;
-    setView('<div class="center"><p class="muted">Loading dashboard...</p></div>');
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading organiser dashboard...</p></div>');
 
     var events = [];
     try {
       events = extractList(await api('/api/organiser/events'));
     } catch (err) {
-      setView('<div class="card center"><p>Could not load your events.</p><p class="muted">' + esc(err.message) + '</p></div>');
+      setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size:20px; margin-bottom:8px;">Could not load events</h3><p style="color:var(--text-muted); font-size:14px;">' + esc(err.message) + '</p></div>');
       return;
     }
 
-    var html = '<div class="section-head"><h2>Organiser dashboard</h2></div>';
+    var html = '<div style="margin-bottom: 32px;"><h1 style="font-size: 32px; font-weight: 800; margin-bottom: 8px;">Organiser Dashboard</h1><p style="color:var(--text-muted);">Create live event listings and track seat reservations & revenue.</p></div>';
 
-    html += '<div class="card mb"><div class="section-head"><h3>Create event</h3></div>' +
-      '<form id="createEventForm" class="form-grid" data-action="create-event" novalidate>' +
-        '<div class="field"><label>Venue</label><select name="venueId" id="venueSelect" required></select></div>' +
-        '<div class="field"><label>Title</label><input name="title" type="text" required></div>' +
-        '<div class="field"><label>Type</label><select name="type" required>' +
-          '<option value="movie">Movie</option><option value="concert">Concert</option></select></div>' +
-        '<div class="field"><label>Date</label><input name="date" type="date" required></div>' +
-        '<div class="field"><label>Time</label><input name="time" type="time" required></div>' +
-        '<div class="field full"><label>Description</label><textarea name="description" rows="3"></textarea></div>' +
-        '<div class="full" id="priceFields"><p class="muted">Select a venue to configure per-category pricing.</p></div>' +
-        '<div class="full"><button type="submit" class="btn btn-primary">Create event</button></div>' +
+    html += '<div class="card" style="margin-bottom: 32px;"><h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Create New Event Listing</h3>' +
+      '<form id="createEventForm" data-action="create-event" novalidate>' +
+        '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">' +
+          '<div class="form-group"><label>Venue</label><select name="venueId" id="venueSelect" class="form-control" required></select></div>' +
+          '<div class="form-group"><label>Event Title</label><input name="title" class="form-control" type="text" placeholder="e.g. Rock Fest 2026" required></div>' +
+          '<div class="form-group"><label>Event Type</label><select name="type" class="form-control" required>' +
+            '<option value="movie">Movie</option><option value="concert">Concert</option></select></div>' +
+          '<div class="form-group"><label>Date</label><input name="date" class="form-control" type="date" required></div>' +
+          '<div class="form-group"><label>Time</label><input name="time" class="form-control" type="time" required></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Description</label><textarea name="description" class="form-control" rows="2" placeholder="Brief event summary..."></textarea></div>' +
+        '<div id="priceFields" style="margin-bottom: 20px;"><p style="color:var(--text-muted); font-size:13px;">Select a venue to configure category pricing.</p></div>' +
+        '<button type="submit" class="btn btn-primary btn-lg">Publish Event</button>' +
       '</form></div>';
 
-    html += '<div class="section-head"><h3>My events</h3></div>';
+    html += '<h3 style="font-size: 22px; font-weight: 700; margin-bottom: 20px;">My Event Listings</h3>';
     if (!events.length) {
-      html += '<div class="card center"><p class="muted">You have not created any events yet.</p></div>';
+      html += '<div class="card" style="text-align:center; padding: 40px;"><p style="color:var(--text-muted);">No events published yet.</p></div>';
     } else {
-      html += '<div class="list-stack">' + events.map(function (ev) {
+      html += '<div style="display:flex; flex-direction:column; gap: 16px;">' + events.map(function (ev) {
         return (
           '<div class="card" data-event-id="' + esc(eventIdOf(ev)) + '">' +
-            '<div class="b-head">' +
-              '<div><strong>' + esc(ev.title || 'Untitled') + '</strong> ' +
-                '<span class="badge badge-type">' + esc(ev.type || '') + '</span></div>' +
-              '<span class="muted">' + esc(formatDateTime(ev.date, ev.time)) + '</span>' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+              '<div><strong style="font-size: 18px;">' + esc(ev.title || 'Untitled') + '</strong> ' +
+                '<span class="event-type-badge badge-' + esc((ev.type||'movie').toLowerCase()) + '" style="margin-left: 8px;">' + esc(ev.type || '') + '</span></div>' +
+              '<span style="color:var(--text-muted); font-size:13px;">📅 ' + esc(formatDateTime(ev.date, ev.time)) + '</span>' +
             '</div>' +
-            '<div class="b-meta">' +
-              esc((ev.venue && (ev.venue.name || ev.venue)) || ev.venue_name || '') +
-              (ev.pricing && ev.pricing.min ? ' &middot; from ' + money(ev.pricing.min) : '') +
-            '</div>' +
-            '<div class="b-actions mt">' +
-              '<a class="btn btn-sm btn-primary" href="#/event/' + eventIdOf(ev) + '">View seat map</a> ' +
-              '<button type="button" class="btn btn-sm btn-ghost" data-action="view-revenue" data-event-id="' + esc(eventIdOf(ev)) + '">Revenue</button>' +
+            '<div style="display:flex; gap: 12px; margin-top: 16px;">' +
+              '<a class="btn btn-sm btn-primary" href="#/event/' + eventIdOf(ev) + '">View Seat Map</a>' +
+              '<button type="button" class="btn btn-sm btn-secondary" data-action="view-revenue" data-event-id="' + esc(eventIdOf(ev)) + '">Revenue Report</button>' +
             '</div>' +
           '</div>'
         );
@@ -1119,8 +1141,6 @@
     }
 
     setView(html);
-
-    // Populate venue dropdown (public endpoint if available, fallback to admin endpoint)
     loadVenueOptions();
   }
 
@@ -1131,9 +1151,7 @@
     try {
       venues = extractList(await api('/api/venues'));
     } catch (e1) {
-      try {
-        venues = extractList(await api('/api/admin/venues'));
-      } catch (e2) { /* no venues accessible */ }
+      try { venues = extractList(await api('/api/admin/venues')); } catch (e2) {}
     }
     if (!venues.length) {
       select.innerHTML = '<option value="">No venues available</option>';
@@ -1148,22 +1166,27 @@
         esc(JSON.stringify(cats)) + '">' +
         esc(v.name || 'Venue') + (v.address ? ' - ' + esc(v.address) : '') + '</option>';
     }).join('');
+
+    select.addEventListener('change', function () {
+      if (select.selectedIndex >= 0) renderPriceFields(select.options[select.selectedIndex]);
+    });
     if (venues.length) renderPriceFields(select.options[select.selectedIndex]);
   }
 
   function renderPriceFields(optionEl) {
     var box = $('#priceFields');
-    if (!box) return;
+    if (!box || !optionEl) return;
     var cats = [];
     try { cats = JSON.parse(optionEl.dataset.categories || '[]'); } catch (e) { cats = []; }
-    if (!cats.length) cats = ['Standard'];
+    if (!cats.length) cats = ['Premium', 'Standard'];
     cats = cats.map(function (c) { return (c && c.category_name) || (c && c.name) || c; });
     box.innerHTML =
-      '<div class="full"><label>Per-category pricing</label></div>' +
+      '<label style="font-size: 13px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">Category Pricing ($)</label>' +
+      '<div style="display:flex; gap: 16px; flex-wrap: wrap;">' +
       cats.map(function (c) {
-        return '<div class="field"><label>' + esc(c) + ' price</label>' +
-          '<input type="number" name="price_' + esc(c) + '" min="0" step="0.01" placeholder="0.00"></div>';
-      }).join('');
+        return '<div style="flex: 1; min-width: 140px;"><label style="font-size: 12px; color: var(--text-dim);">' + esc(c) + '</label>' +
+          '<input type="number" name="price_' + esc(c) + '" class="form-control" min="0" step="0.01" placeholder="50.00"></div>';
+      }).join('') + '</div>';
   }
 
   async function createEvent(form) {
@@ -1172,13 +1195,13 @@
     var type = (form.type.value || '').toLowerCase();
     var date = form.date.value;
     var time = form.time.value;
-    if (!venueId || !title || !date || !time) return toast('Please fill in venue, title, date and time.', 'error');
+    if (!venueId || !title || !date || !time) return toast('Please fill in venue, title, date and time.', 'warning');
 
     var pricing = {};
     $$('input[name^="price_"]', form).forEach(function (input) {
       if (input.value !== '') pricing[input.name.replace('price_', '')] = Number(input.value);
     });
-    if (!Object.keys(pricing).length) return toast('Enter at least one category price.', 'error');
+    if (!Object.keys(pricing).length) pricing = { Premium: 50, Standard: 30 };
 
     var body = {
       venue_id: venueId,
@@ -1197,7 +1220,7 @@
       toast('Event created successfully.', 'success');
       viewOrganiser();
     } catch (err) {
-      toast(err.message, 'error');
+      toast(err.message, 'danger');
     } finally {
       btn.disabled = false;
     }
@@ -1205,95 +1228,65 @@
 
   async function viewRevenue(eventId) {
     if (!requireRole('organiser')) return;
-    setView('<div class="center"><p class="muted">Loading revenue...</p></div>');
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading revenue details...</p></div>');
     try {
-      var res = await api('/api/organiser/events/' + eventId + '/revenue');
-      var cats = res.categories || res.revenueByCategory || res.byCategory || res.breakdown || [];
-      var totalRes = res.total || res.totalRevenue || res.revenue;
-      var total = (totalRes && typeof totalRes === 'object')
-        ? (totalRes.revenue || totalRes.amount || 0)
-        : (totalRes || 0);
+      var data = await api('/api/organiser/events/' + eventId + '/revenue');
+      var cats = data.per_category || data.by_category || [];
+      var total = data.total || { count: 0, revenue: 0 };
 
-      var catRows = '';
-      if (Array.isArray(cats)) {
-        catRows = cats.map(function (c) {
-          var name = c.category || c.name || 'All';
-          var count = c.count || c.seats || c.seatsBooked || 0;
-          var rev = c.revenue || c.amount || 0;
-          return '<div class="revenue-row"><span>' + esc(name) +
-            ' <span class="muted">(' + count + ' seat' + (count === 1 ? '' : 's') + ')</span></span>' +
-            '<strong>' + money(rev) + '</strong></div>';
-        }).join('');
-      } else if (cats && typeof cats === 'object') {
-        catRows = Object.keys(cats).map(function (name) {
-          var c = cats[name] || {};
-          var count = typeof c === 'number' ? c : (c.count || c.seats || 0);
-          var rev = typeof c === 'number' ? 0 : (c.revenue || c.amount || 0);
-          return '<div class="revenue-row"><span>' + esc(name) + '</span><strong>' + money(rev) + '</strong></div>';
-        }).join('');
-      }
-      if (!catRows) catRows = '<p class="muted">No revenue data yet.</p>';
-
-      setView(
-        '<a href="#/organiser" class="muted">&larr; Back to dashboard</a>' +
-        '<div class="section-head"><h2>Revenue</h2></div>' +
-        '<div class="card">' + catRows +
-          '<div class="revenue-total"><span>Total revenue</span><span>' + money(total) + '</span></div>' +
-        '</div>'
-      );
+      var html = '<div style="margin-bottom: 24px;"><a href="#/organiser" style="font-weight:600;">&larr; Back to Organiser Dashboard</a></div>' +
+        '<div class="card" style="margin-bottom: 32px;">' +
+          '<h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px;">Revenue Report</h2>' +
+          '<p style="color:var(--text-muted);">Active Bookings: <strong>' + (total.count || 0) + '</strong> &middot; Total Revenue: <strong>' + money(total.revenue || 0) + '</strong></p>' +
+        '</div>' +
+        '<div class="card"><h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">Breakdown by Category</h3>' +
+          '<div class="table-responsive"><table class="table"><thead><tr><th>Category</th><th>Booked Seats</th><th>Revenue</th></tr></thead><tbody>' +
+            cats.map(function (c) {
+              return '<tr><td>' + esc(c.category || c.category_name || 'Standard') + '</td><td>' + (c.booked || c.count || 0) + '</td><td>' + money(c.revenue || 0) + '</td></tr>';
+            }).join('') +
+          '</tbody></table></div>' +
+        '</div>';
+      setView(html);
     } catch (err) {
-      setView('<div class="card center"><p>Could not load revenue.</p><p class="muted">' + esc(err.message) + '</p></div>');
+      setView('<div class="card" style="text-align:center;"><p>Could not load revenue: ' + esc(err.message) + '</p></div>');
     }
   }
 
-  /* ============================================================
-   * Admin dashboard
-   * ============================================================ */
   async function viewAdmin() {
     if (!requireRole('admin')) return;
-    setView('<div class="center"><p class="muted">Loading admin panel...</p></div>');
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Loading admin panel...</p></div>');
 
     var venues = [];
     try {
       venues = extractList(await api('/api/admin/venues'));
     } catch (err) {
-      setView('<div class="card center"><p>Could not load venues.</p><p class="muted">' + esc(err.message) + '</p></div>');
+      setView('<div class="card" style="text-align:center;"><p>Could not load venues: ' + esc(err.message) + '</p></div>');
       return;
     }
 
-    var html = '<div class="section-head"><h2>Admin panel</h2></div>';
+    var html = '<div style="margin-bottom: 32px;"><h1 style="font-size: 32px; font-weight: 800; margin-bottom: 8px;">Admin Panel</h1><p style="color:var(--text-muted);">Configure venues, seat grid layouts, and categories.</p></div>';
 
-    html += '<div class="card mb"><div class="section-head"><h3>Create venue</h3></div>' +
-      '<form id="createVenueForm" class="form-grid" data-action="create-venue" novalidate>' +
-        '<div class="field"><label>Venue name</label><input name="name" type="text" required></div>' +
-        '<div class="field"><label>Address</label><input name="address" type="text" required></div>' +
-        '<div class="field"><label>Rows</label><input name="rows" type="number" min="1" required></div>' +
-        '<div class="field"><label>Columns</label><input name="cols" type="number" min="1" required></div>' +
-        '<div class="field full"><label>Seat categories (comma-separated)</label>' +
-          '<input name="categories" type="text" value="Premium, Standard" required>' +
-          '<span class="hint">e.g. Premium, Standard. Categories map to seat groups on the venue floor.</span></div>' +
-        '<div class="full"><button type="submit" class="btn btn-primary">Create venue</button></div>' +
+    html += '<div class="card" style="margin-bottom: 32px;"><h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Create Venue</h3>' +
+      '<form id="createVenueForm" data-action="create-venue" novalidate>' +
+        '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">' +
+          '<div class="form-group"><label>Venue Name</label><input name="name" class="form-control" placeholder="Grand Cinemax" required></div>' +
+          '<div class="form-group"><label>Address</label><input name="address" class="form-control" placeholder="12 Downtown Ave"></div>' +
+          '<div class="form-group"><label>Rows</label><input name="rows" class="form-control" type="number" min="1" max="20" value="8" required></div>' +
+          '<div class="form-group"><label>Columns</label><input name="cols" class="form-control" type="number" min="1" max="20" value="10" required></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Categories (comma separated)</label><input name="categories" class="form-control" value="Premium, Standard"></div>' +
+        '<button type="submit" class="btn btn-primary btn-lg">Save Venue</button>' +
       '</form></div>';
 
-    html += '<div class="section-head"><h3>Venues</h3></div>';
+    html += '<h3 style="font-size: 22px; font-weight: 700; margin-bottom: 20px;">Configured Venues</h3>';
     if (!venues.length) {
-      html += '<div class="card center"><p class="muted">No venues created yet.</p></div>';
+      html += '<div class="card" style="text-align:center; padding: 40px;"><p style="color:var(--text-muted);">No venues configured yet.</p></div>';
     } else {
-      html += '<div class="list-stack">' + venues.map(function (v) {
-        var cats = v.categories || v.category || [];
-        var catText = Array.isArray(cats)
-          ? cats.map(function (c) { return (c && c.category_name) || (c && c.name) || c; }).join(', ')
-          : String(cats || '');
+      html += '<div style="display:flex; flex-direction:column; gap: 16px;">' + venues.map(function (v) {
         return (
-          '<div class="card" data-venue-id="' + esc(eventIdOf(v)) + '">' +
-            '<div class="b-head">' +
-              '<div><strong>' + esc(v.name || 'Venue') + '</strong></div>' +
-              '<button type="button" class="btn btn-sm btn-danger" data-action="delete-venue" data-venue-id="' + esc(eventIdOf(v)) + '">Delete</button>' +
-            '</div>' +
-            '<div class="b-meta">' +
-              esc(v.address || '') + ' &middot; ' + (v.rows || 0) + ' x ' + (v.cols || 0) + ' layout' +
-              (catText ? ' &middot; Categories: ' + esc(catText) : '') +
-            '</div>' +
+          '<div class="card">' +
+            '<h4 style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">' + esc(v.name || 'Venue') + '</h4>' +
+            '<p style="color:var(--text-muted); font-size:14px;">Address: ' + esc(v.address || 'N/A') + ' &middot; Grid: ' + v.rows + 'x' + v.cols + ' (' + (v.rows * v.cols) + ' total seats)</p>' +
           '</div>'
         );
       }).join('') + '</div>';
@@ -1303,240 +1296,61 @@
   }
 
   async function createVenue(form) {
-    var cats = form.categories.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    var name = form.name.value.trim();
+    var address = form.address.value.trim();
     var rows = Number(form.rows.value);
     var cols = Number(form.cols.value);
-    var body = {
-      name: form.name.value.trim(),
-      address: form.address.value.trim(),
-      rows: rows,
-      cols: cols,
-      categories: cats
-    };
-    if (!body.name || !body.address || !rows || !cols) return toast('Please fill in all venue details.', 'error');
-    if (!cats.length) return toast('Enter at least one seat category.', 'error');
+    var catsStr = form.categories.value.trim();
+    if (!name || !rows || !cols) return toast('Name, rows, and columns are required.', 'warning');
+
+    var categories = catsStr ? catsStr.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : ['Standard'];
 
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      await api('/api/admin/venues', { method: 'POST', body: body });
-      toast('Venue created.', 'success');
+      await api('/api/admin/venues', {
+        method: 'POST',
+        body: { name: name, address: address, rows: rows, cols: cols, categories: categories }
+      });
+      toast('Venue created successfully.', 'success');
       viewAdmin();
     } catch (err) {
-      toast(err.message, 'error');
+      toast(err.message, 'danger');
     } finally {
       btn.disabled = false;
     }
   }
 
-  async function deleteVenue(venueId) {
-    var ok = await confirmDialog('Delete venue?', 'This will delete the venue and its layout. Existing events may be affected.');
-    if (!ok) return;
-    try {
-      await api('/api/admin/venues/' + encodeURIComponent(venueId), { method: 'DELETE' });
-      toast('Venue deleted.', 'success');
-      viewAdmin();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  }
-
   /* ============================================================
-   * Waitlist claim flow
+   * Waitlist Claim Offer View
    * ============================================================ */
   async function viewClaim() {
-    var tokenParam = getQuery().token;
-    setView('<div class="center"><p class="muted">Claiming your seat offer...</p></div>');
-    if (!tokenParam) {
-      setView('<div class="card center"><p>Missing offer token. Please open the link from your email.</p></div>');
+    var token = getQuery().token;
+    if (!token) {
+      setView('<div class="card" style="text-align:center;"><p>Invalid claim token.</p></div>');
       return;
     }
+
+    setView('<div style="text-align:center; padding: 60px 0;"><p style="color: var(--text-muted);">Validating waitlist offer...</p></div>');
+
     try {
-      var res = await api('/api/waitlist/offer/' + encodeURIComponent(tokenParam));
-      var offer = res.offer || res;
-      var eventId = offer.eventId || offer.event_id || (offer.event && (offer.event.id || offer.event._id));
-      var seats = offer.seats || offer.seatIds || (offer.seat ? [offer.seat] : []);
-      var expiresAt = new Date(offer.expiresAt || offer.expires_at || offer.expiry || offer.ttl).getTime();
-      if (isNaN(expiresAt)) expiresAt = Date.now() + 300000;
-
-      if (!eventId) throw new Error('Offer response did not include an event.');
-
+      var res = await api('/api/waitlist/offer/' + encodeURIComponent(token), { method: 'POST' });
       claim = {
-        token: tokenParam,
-        holdToken: offer.holdToken || tokenParam,
-        eventId: String(eventId),
-        seatIds: seats.map(function (s) {
-          if (typeof s === 'string') return s;
-          return seatKey(s.row, s.col);
-        }),
-        expiresAt: expiresAt
+        token: token,
+        eventId: res.event_id || res.eventId,
+        seatIds: res.seat ? [seatKey(res.seat.row || res.seat.seat_row, res.seat.col || res.seat.seat_col)] : [],
+        expiresAt: res.expiresAt
       };
-
-      toast('Seat offer claimed! Complete the booking before the offer expires.', 'success');
-      navigate('/event/' + eventId + '?claim=' + encodeURIComponent(tokenParam));
+      toast('Waitlist seat claim valid! Complete checkout below.', 'success');
+      navigate('/event/' + claim.eventId + '?claim=' + encodeURIComponent(token));
     } catch (err) {
-      setView('<div class="card center"><p>This offer is no longer valid.</p><p class="muted">' + esc(err.message) +
-        '</p><div class="mt"><a class="btn btn-primary" href="#/events">Browse events</a></div></div>');
+      setView('<div class="card" style="text-align:center; max-width: 500px; margin: 40px auto;"><h3 style="font-size:20px; margin-bottom:8px;">Offer Expired or Invalid</h3><p style="color:var(--text-muted); font-size:14px;">' + esc(err.message) + '</p><a href="#/events" class="btn btn-primary mt" style="margin-top:16px;">Browse Events</a></div>');
     }
   }
 
   /* ============================================================
-   * Countdown (hold / offer)
-   * ============================================================ */
-  function startCountdown(elId, remainingMs, kind) {
-    stopCountdown();
-    var deadline = Date.now() + remainingMs;
-    var el = document.getElementById(elId);
-    if (!el) return;
-    function tick() {
-      var left = deadline - Date.now();
-      if (left <= 0) {
-        el.textContent = kind === 'offer' ? 'Offer expired' : 'Hold expired';
-        stopCountdown();
-        if (kind === 'offer') {
-          claim = null;
-          selectedSeats = [];
-          toast('The seat offer has expired. It has been offered to the next customer on the waitlist.', 'info');
-        } else if (hold) {
-          hold = null;
-          selectedSeats = [];
-          var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
-          if (evId) {
-            refreshSeatMap(evId, eventCache[evId]);
-            toast('Seat hold expired. The seats have been released.', 'info');
-          }
-        }
-        return;
-      }
-      el.textContent = (kind === 'offer' ? 'Seat offer expires in ' : 'Seats held for ') + fmtRemaining(left);
-    }
-    tick();
-    countdownTimer = setInterval(tick, 1000);
-  }
-
-  function stopCountdown() {
-    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-  }
-
-  /* ============================================================
-   * Global event delegation
-   * ============================================================ */
-  document.addEventListener('click', function (e) {
-    var el = e.target.closest('[data-action]');
-    if (!el) return;
-    var action = el.dataset.action;
-
-    switch (action) {
-      case 'logout':
-        clearSession();
-        toast('Logged out.', 'info');
-        navigate('/login');
-        break;
-
-      case 'auth-tab':
-        navigate('/' + el.dataset.mode);
-        break;
-
-      case 'toggle-seat': {
-        var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
-        if (!requireRole('customer')) break;
-        if (hold) { toast('Release your current hold before changing seats.', 'error'); break; }
-        var key = el.dataset.seat;
-        var idx = selectedSeats.indexOf(key);
-        if (idx >= 0) selectedSeats.splice(idx, 1);
-        else {
-          if (selectedSeats.length >= MAX_SELECTABLE) {
-            toast('You can select a maximum of ' + MAX_SELECTABLE + ' seats.', 'error');
-            break;
-          }
-          selectedSeats.push(key);
-        }
-        refreshSeatMap(evId, eventCache[evId]);
-        break;
-      }
-
-      case 'hold-seats': {
-        var evId2 = $('#eventView') ? $('#eventView').dataset.eventId : null;
-        if (evId2) holdSelectedSeats(evId2);
-        break;
-      }
-
-      case 'release-hold':
-        releaseHold();
-        break;
-
-      case 'view-revenue':
-        navigate('/revenue/' + el.dataset.eventId);
-        break;
-
-      case 'toggle-booking-detail':
-        toggleBookingDetail(el.dataset.ref, el);
-        break;
-
-      case 'cancel-booking':
-        cancelBooking(el.dataset.ref, el.dataset.eventId);
-        break;
-
-      case 'delete-venue':
-        deleteVenue(el.dataset.venueId);
-        break;
-
-      case 'clear-filters':
-        navigate('/events');
-        break;
-    }
-  });
-
-  document.addEventListener('change', function (e) {
-    if (e.target && e.target.id === 'venueSelect') {
-      var opt = e.target.options[e.target.selectedIndex];
-      renderPriceFields(opt);
-    }
-    if (e.target && e.target.closest('#roleSelect')) {
-      var role = e.target.value;
-      $$('#roleSelect label').forEach(function (l) {
-        l.classList.toggle('sel', l.dataset.role === role);
-      });
-    }
-  });
-
-  document.addEventListener('submit', function (e) {
-    var form = e.target;
-    var action = form.dataset.action;
-
-    if (action === 'submit-auth') {
-      e.preventDefault();
-      submitAuth(form, form.dataset.mode);
-    } else if (action === 'apply-filters') {
-      e.preventDefault();
-      var p = new URLSearchParams();
-      if (form.type.value) p.set('type', form.type.value.toLowerCase());
-      if (form.q.value.trim()) p.set('q', form.q.value.trim());
-      if (form.date.value) p.set('date', form.date.value);
-      var qs = p.toString();
-      navigate('/events' + (qs ? '?' + qs : ''));
-    } else if (action === 'submit-booking') {
-      e.preventDefault();
-      var evId3 = $('#eventView') ? $('#eventView').dataset.eventId : null;
-      if (evId3) submitBooking(evId3, form);
-    } else if (action === 'join-waitlist') {
-      e.preventDefault();
-      var evId4 = $('#eventView') ? $('#eventView').dataset.eventId : null;
-      if (evId4) joinWaitlist(evId4, form);
-    } else if (action === 'create-event') {
-      e.preventDefault();
-      createEvent(form);
-    } else if (action === 'create-venue') {
-      e.preventDefault();
-      createVenue(form);
-    }
-  });
-
-  // 'clear-filters' is handled in the click delegation switch above.
-
-  /* ============================================================
-   * Boot
+   * Initial entry
    * ============================================================ */
   window.addEventListener('hashchange', render);
-  render();
+  document.addEventListener('DOMContentLoaded', render);
 })();

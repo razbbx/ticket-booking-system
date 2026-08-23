@@ -3,33 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ticket Booking System</title>
+  <meta name="description" content="Real-time Movie & Concert Ticket Booking Platform with visual seat selection, instant TTL seat holds, automated waitlist reallocation, and QR tickets.">
+  <title>Ticket Booking System - Movies & Concerts</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
+  <!-- Navigation Bar -->
   <header class="navbar">
     <div class="navbar-inner">
-      <a href="#/events" class="brand" data-nav="home">Ticket Booking System</a>
+      <a href="#/events" class="brand" data-nav="home">
+        <span class="brand-icon">🎟️</span>
+        <span>Ticket Pass</span>
+      </a>
       <nav class="nav-links" id="navLinks"></nav>
       <div class="nav-user" id="navUser"></div>
     </div>
   </header>
 
+  <!-- Main View Container -->
   <main id="view" class="container" aria-live="polite"></main>
 
-  <footer class="footer">
-    <p>Movie &amp; Concert Ticket Booking &middot; Seat holds auto-release after the hold TTL expires</p>
-  </footer>
+  <!-- Toast Notification Region -->
+  <div id="toastRegion" aria-live="assertive"></div>
 
-  <div id="toastRegion" class="toast-region" aria-live="assertive"></div>
-
+  <!-- Reusable Confirm Modal -->
   <div id="modalBackdrop" class="modal-backdrop hidden">
-    <div class="modal">
-      <h3 id="modalTitle">Confirm</h3>
-      <p id="modalBody"></p>
-      <div class="modal-actions">
-        <button type="button" id="modalCancel" class="btn btn-ghost">Cancel</button>
+    <div class="modal-box">
+      <h3 id="modalTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 12px;">Confirm Action</h3>
+      <p id="modalBody" style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;"></p>
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button type="button" id="modalCancel" class="btn btn-secondary">Cancel</button>
         <button type="button" id="modalOk" class="btn btn-primary">Confirm</button>
       </div>
     </div>
