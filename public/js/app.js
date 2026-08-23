@@ -549,6 +549,100 @@
     );
   }
 
+  /* ---------- Zoom & Pan Engine State ---------- */
+  var currentZoom = 1.0;
+  var autoScale = 1.0;
+  var panX = 0;
+  var panY = 0;
+  var isDragging = false;
+  var dragStartX = 0;
+  var dragStartY = 0;
+
+  function updateZoomTransform() {
+    var canvas = $('.zoom-canvas');
+    if (!canvas) return;
+    var finalScale = currentZoom * autoScale;
+    canvas.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + finalScale + ')';
+    var label = $('#zoomLabel');
+    if (label) label.textContent = Math.round(finalScale * 100) + '%';
+  }
+
+  function autoFitSeatMap() {
+    var viewport = $('.seat-map-viewport');
+    var canvas = $('.zoom-canvas');
+    if (!viewport || !canvas) return;
+
+    currentZoom = 1.0;
+    panX = 0;
+    panY = 0;
+    canvas.style.transform = 'none';
+
+    setTimeout(function () {
+      var vWidth = viewport.clientWidth - 32;
+      var vHeight = viewport.clientHeight - 32;
+      var cWidth = canvas.scrollWidth;
+      var cHeight = canvas.scrollHeight;
+
+      if (cWidth > 0 && cHeight > 0 && vWidth > 0 && vHeight > 0) {
+        var scaleX = vWidth / cWidth;
+        var scaleY = vHeight / cHeight;
+        autoScale = Math.min(scaleX, scaleY, 1.0);
+        if (autoScale < 0.1) autoScale = 0.1;
+      } else {
+        autoScale = 1.0;
+      }
+
+      updateZoomTransform();
+    }, 20);
+  }
+
+  function zoomIn() {
+    currentZoom = Math.min(currentZoom * 1.25, 4.0);
+    updateZoomTransform();
+  }
+
+  function zoomOut() {
+    currentZoom = Math.max(currentZoom * 0.8, 0.3);
+    updateZoomTransform();
+  }
+
+  function zoomReset() {
+    autoFitSeatMap();
+  }
+
+  window.addEventListener('resize', function () {
+    if (document.body.classList.contains('no-scroll-mode')) {
+      autoFitSeatMap();
+    }
+  });
+
+  document.addEventListener('wheel', function (e) {
+    var viewport = e.target.closest('.seat-map-viewport');
+    if (!viewport) return;
+    e.preventDefault();
+    if (e.deltaY < 0) zoomIn();
+    else zoomOut();
+  }, { passive: false });
+
+  document.addEventListener('mousedown', function (e) {
+    var viewport = e.target.closest('.seat-map-viewport');
+    if (!viewport || e.target.closest('[data-action]')) return;
+    isDragging = true;
+    dragStartX = e.clientX - panX;
+    dragStartY = e.clientY - panY;
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!isDragging) return;
+    panX = e.clientX - dragStartX;
+    panY = e.clientY - dragStartY;
+    updateZoomTransform();
+  });
+
+  document.addEventListener('mouseup', function () {
+    isDragging = false;
+  });
+
   /* ============================================================
    * Seat map + booking flow
    * ============================================================ */
@@ -592,8 +686,15 @@
         '</div>' +
       '</div>' +
       '<div class="seat-map-viewport">' +
-        '<div class="screen-bar"><span class="screen-label">STAGE / SCREEN</span></div>' +
-        '<div id="seatMapRegion"></div>' +
+        '<div class="zoom-controls">' +
+          '<button type="button" class="zoom-btn" data-action="zoom-out" title="Zoom Out">-</button>' +
+          '<button type="button" class="zoom-reset-btn" data-action="zoom-reset" id="zoomLabel" title="Reset Fit">100%</button>' +
+          '<button type="button" class="zoom-btn" data-action="zoom-in" title="Zoom In">+</button>' +
+        '</div>' +
+        '<div class="zoom-canvas">' +
+          '<div class="screen-bar"><span class="screen-label">STAGE / SCREEN</span></div>' +
+          '<div id="seatMapRegion"></div>' +
+        '</div>' +
       '</div>' +
       '<div class="event-booking-footer">' +
         '<div id="bookingRegion"></div>' +
@@ -754,6 +855,7 @@
     '</div>';
 
     region.innerHTML = gridHtml;
+    if (!isPoll) autoFitSeatMap();
 
     if (!document.querySelector('#bookingRegion .success-box')) {
       renderBookingPanel(event, eventId, seats, availableCount, soldOut);
@@ -887,6 +989,12 @@
       cancelBooking(btn.dataset.ref, btn.dataset.eventId);
     } else if (action === 'view-revenue') {
       navigate('/revenue/' + btn.dataset.eventId);
+    } else if (action === 'zoom-in') {
+      zoomIn();
+    } else if (action === 'zoom-out') {
+      zoomOut();
+    } else if (action === 'zoom-reset') {
+      zoomReset();
     }
   });
 
