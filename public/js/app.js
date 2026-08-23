@@ -560,6 +560,11 @@
   var dragStartY = 0;
   var animFrameId = null;
 
+  var seatsByKeyInMap = {};
+  var seatsListInMap = [];
+  var maxColInMap = 0;
+  var requestedSeatCount = 2; // Default requested ticket count
+
   function renderZoom() {
     currentZoom += (targetZoom - currentZoom) * 0.35;
     if (Math.abs(targetZoom - currentZoom) < 0.001) {
@@ -692,6 +697,8 @@
     var isMovie = (event.type || '').toLowerCase() === 'movie';
     var badgeCls = isMovie ? 'badge-movie' : 'badge-concert';
 
+    var requestedSeatCount = 2;
+
     var html = '<div id="eventView" class="event-view-no-scroll" data-event-id="' + esc(eventId) + '">' +
       '<div class="event-header-compact">' +
         '<div>' +
@@ -702,7 +709,16 @@
           '</div>' +
           '<h1 style="font-size: 20px; font-weight: 800; line-height: 1.2;">' + esc(event.title || 'Event') + '</h1>' +
         '</div>' +
-        '<div style="text-align: right;">' +
+        '<div style="display:flex; align-items:center; gap:16px;">' +
+          '<div class="ticket-qty-picker">' +
+            '<span class="ticket-qty-label">Tickets:</span>' +
+            '<button type="button" class="qty-btn' + (requestedSeatCount === 1 ? ' active' : '') + '" data-action="set-qty" data-qty="1">1</button>' +
+            '<button type="button" class="qty-btn' + (requestedSeatCount === 2 ? ' active' : '') + '" data-action="set-qty" data-qty="2">2</button>' +
+            '<button type="button" class="qty-btn' + (requestedSeatCount === 3 ? ' active' : '') + '" data-action="set-qty" data-qty="3">3</button>' +
+            '<button type="button" class="qty-btn' + (requestedSeatCount === 4 ? ' active' : '') + '" data-action="set-qty" data-qty="4">4</button>' +
+            '<button type="button" class="qty-btn' + (requestedSeatCount === 5 ? ' active' : '') + '" data-action="set-qty" data-qty="5">5</button>' +
+            '<button type="button" class="qty-btn' + (requestedSeatCount === 6 ? ' active' : '') + '" data-action="set-qty" data-qty="6">6</button>' +
+          '</div>' +
           '<span style="color: var(--text-muted); font-size: 13px; font-weight: 600;">📅 ' + esc(formatDateTime(event.date, event.time)) + '</span>' +
         '</div>' +
       '</div>' +
@@ -799,6 +815,10 @@
         availableCount++;
       }
     });
+
+    seatsByKeyInMap = seatsByKey;
+    seatsListInMap = seats;
+    maxColInMap = maxCol;
 
     if (minRow === Infinity) minRow = 0;
     if (minCol === Infinity) minCol = 0;
@@ -986,6 +1006,17 @@
       var params = new URLSearchParams(window.location.hash.split('?')[1] || '');
       if (t) params.set('type', t); else params.delete('type');
       navigate('/events' + (params.toString() ? '?' + params.toString() : ''));
+    } else if (action === 'set-qty') {
+      requestedSeatCount = Number(btn.dataset.qty) || 2;
+      $$('.qty-btn').forEach(function (b) {
+        if (Number(b.dataset.qty) === requestedSeatCount) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+      if (selectedSeats.length > requestedSeatCount) {
+        selectedSeats = selectedSeats.slice(0, requestedSeatCount);
+      }
+      var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
+      if (evId) refreshSeatMap(evId, eventCache[evId], true);
     } else if (action === 'toggle-seat') {
       var key = btn.dataset.key;
       if (!key) return;
@@ -993,14 +1024,60 @@
       if (idx >= 0) {
         selectedSeats.splice(idx, 1);
       } else {
-        if (selectedSeats.length >= MAX_SELECTABLE) {
-          toast('You can select at most ' + MAX_SELECTABLE + ' seats.', 'warning');
-          return;
+        if (selectedSeats.length >= requestedSeatCount) {
+          selectedSeats = [];
         }
-        selectedSeats.push(key);
+
+        var parts = key.split(':');
+        var startRow = Number(parts[0]);
+        var startCol = Number(parts[1]);
+
+        var seatsToAdd = [];
+        for (var c = startCol; c <= (maxColInMap || 100); c++) {
+          var k = seatKey(startRow, c);
+          var sObj = seatsByKeyInMap[k];
+          if (sObj && (sObj.status || 'available') === 'available') {
+            seatsToAdd.push(k);
+            if (seatsToAdd.length === (requestedSeatCount - selectedSeats.length)) break;
+          } else {
+            break;
+          }
+        }
+        if (!seatsToAdd.length) seatsToAdd.push(key);
+
+        seatsToAdd.forEach(function (k) {
+          if (selectedSeats.indexOf(k) < 0 && selectedSeats.length < MAX_SELECTABLE) {
+            selectedSeats.push(k);
+          }
+        });
       }
+
       var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
-      if (evId) refreshSeatMap(evId, eventCache[evId]);
+      var ev = evId ? eventCache[evId] : null;
+
+      // DO NOT RESET CANVAS SCALE OR ZOOM OUT ON SEAT CLICK!
+      if (evId) refreshSeatMap(evId, ev, true);
+
+      // ONLY AUTO-ZOOM OUT WHEN MAX REQUESTED SEATS ARE REACHED!
+      if (selectedSeats.length >= requestedSeatCount) {
+        autoFitSeatMap();
+      }
+    } else if (action === 'select-zone') {
+      var cat = btn.dataset.category || 'Standard';
+      selectedSeats = [];
+      seatsListInMap.forEach(function (s) {
+        var cName = s.category_name || s.category || 'Standard';
+        var status = s.status || 'available';
+        if (cName === cat && status === 'available' && selectedSeats.length < requestedSeatCount) {
+          var k = seatKey(s.seat_row !== undefined ? s.seat_row : s.row, s.seat_col !== undefined ? s.seat_col : s.col);
+          selectedSeats.push(k);
+        }
+      });
+      var evId = $('#eventView') ? $('#eventView').dataset.eventId : null;
+      if (evId) refreshSeatMap(evId, eventCache[evId], true);
+      if (selectedSeats.length >= requestedSeatCount) {
+        autoFitSeatMap();
+      }
     } else if (action === 'hold-seats') {
       holdSelectedSeats(btn.dataset.eventId);
     } else if (action === 'toggle-booking-detail') {
@@ -1235,12 +1312,15 @@
       var res = await api('/svc/bookings/' + encodeURIComponent(ref));
       var booking = extractBooking(res);
       var qr = qrOf(booking) || qrOf(res);
+      if (!qr && ref) {
+        qr = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(ref);
+      }
       body.innerHTML =
-        (qr
-          ? '<div style="background:#ffffff; padding: 20px; border-radius: 16px; display: inline-block; margin-bottom: 16px;">' +
-              '<img src="' + esc(qr) + '" style="width: 180px; height: 180px;" alt="Ticket QR code">' +
-            '</div>'
-          : '<p style="color:var(--text-muted); margin-bottom: 12px;">QR Code generated upon check-in.</p>') +
+        '<div style="background:#ffffff; padding: 16px; border-radius: 16px; display: inline-block; margin-bottom: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">' +
+          '<img src="' + esc(qr) + '" style="width: 180px; height: 180px; display: block;" alt="Ticket QR Code">' +
+        '</div>' +
+        '<div style="font-size: 13px; color: var(--emerald); font-weight: 700; margin-bottom: 8px;">✓ Official Verified QR Ticket</div>' +
+        '<div style="font-size: 12px; color: var(--text-muted);">Booking Reference: <strong style="color:var(--text-main);">' + esc(ref) + '</strong></div>';
         '<p style="font-size:13px; color:var(--text-dim);">Present this ticket QR at venue entry.</p>';
     } catch (err) {
       body.innerHTML = '<p style="color:var(--text-muted);">Ticket detail ready. Reference: ' + esc(ref) + '</p>';

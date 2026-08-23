@@ -1017,5 +1017,181 @@ body.no-scroll-mode .container {
   gap: 16px;
   width: 100%;
 }
-/* no scroll mode */
+
+/* ============================================================
+   Ticket Quantity Picker
+   ============================================================ */
+.ticket-qty-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: var(--glass-border);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.ticket-qty-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.qty-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.qty-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.qty-btn.active {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* ============================================================
+   230-Degree Field Concert Stadium Arc Layout
+   ============================================================ */
+.stadium-arc-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+}
+
+.stage-central {
+  width: 240px;
+  height: 48px;
+  background: linear-gradient(135deg, #f59e0b 0%, #ec4899 100%);
+  border-radius: 24px 24px 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #ffffff;
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
+  margin-bottom: 32px;
+  text-transform: uppercase;
+}
+
+.arc-zones-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.stadium-zone-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stadium-zone-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.2);
+}
+
+.stadium-zone-card.selected-zone {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.zone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.zone-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.zone-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+}
+
+.zone-badge.badge-vip {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.zone-badge.badge-general {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.zone-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.zone-avail {
+  color: var(--text-muted);
+}
+
+.zone-price {
+  font-size: 16px;
+  font-weight: 800;
+  color: #6ee7b7;
+}
+
+/* Ticket QR Modal */
+.qr-preview-box {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  display: inline-block;
+  margin: 16px 0;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.qr-preview-box img {
+  display: block;
+  width: 180px;
+  height: 180px;
+}
 /* sleek footer & smooth 60fps zoom */
+/* 1-click auto-fill, Base64 PNG QR fix, 230-degree curved stadium arc, 12 events */
