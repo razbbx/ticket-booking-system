@@ -1278,6 +1278,114 @@ body.no-scroll-mode .container {
   background: rgba(255, 255, 255, 0.15);
   color: var(--text-main);
 }
+
+/* ============================================================
+   Circular Stadium Arena Map (360-Degree Radial Wheel)
+   ============================================================ */
+.circular-stadium-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 900px;
+  padding: 16px;
+}
+
+.circular-stadium-wheel {
+  width: 440px;
+  height: 440px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.95);
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  margin-bottom: 32px;
+}
+
+.stadium-center-field {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #10b981 0%, #047857 80%, #064e3b 100%);
+  border: 3px solid #6ee7b7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 12px;
+}
+
+.inner-lounge-ring {
+  position: absolute;
+  width: 290px;
+  height: 290px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.lounge-sector {
+  position: absolute;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.lounge-sector:hover {
+  transform: scale(1.15);
+  z-index: 25;
+}
+
+.sec-red { background: rgba(244, 63, 94, 0.95); color: #ffffff; border: 1px solid #f43f5e; }
+.sec-green { background: rgba(16, 185, 129, 0.95); color: #ffffff; border: 1px solid #10b981; }
+.sec-blue { background: rgba(99, 102, 241, 0.95); color: #ffffff; border: 1px solid #6366f1; }
+.sec-purple { background: rgba(168, 85, 247, 0.95); color: #ffffff; border: 1px solid #a855f7; }
+.sec-orange { background: rgba(245, 158, 11, 0.95); color: #ffffff; border: 1px solid #f59e0b; }
+.sec-grey { background: rgba(100, 116, 139, 0.95); color: #ffffff; border: 1px solid #94a3b8; }
+.sec-amber { background: rgba(217, 119, 6, 0.95); color: #ffffff; border: 1px solid #d97706; }
+.sec-dark { background: rgba(30, 41, 59, 0.95); color: #ffffff; border: 1px solid #475569; }
+
+.outer-stand-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.stand-sector {
+  position: absolute;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+}
+
+.stand-sector:hover {
+  transform: scale(1.15);
+  z-index: 25;
+}
 .ticket-qty-picker {
   display: flex;
   align-items: center;

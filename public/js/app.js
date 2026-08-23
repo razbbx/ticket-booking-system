@@ -860,24 +860,26 @@
     var isConcert = event && (event.type || '').toLowerCase() === 'concert';
 
     if (isConcert) {
-      // Concert Arena 230-degree Visual Stadium Arc Map + Group Cards (NO SEAT MATRIX)
-      var gridHtml = '<div class="stadium-arc-container">' +
-        '<div class="stadium-map-graphic">' +
-          '<div class="stage-central">⚡ MAIN STAGE & PERFORMANCE ARENA ⚡</div>' +
-          '<div class="stadium-visual-arc">' +
-            '<div class="arc-ring vip-arc" data-action="select-zone" data-category="Premium" title="Front VIP Arc (0°-180°)">' +
-              '👑 Front VIP Arc Category Area (Stage Facing 0°–180°)' +
-            '</div>' +
-            '<div class="arc-ring golden-arc" data-action="select-zone" data-category="Premium" title="Golden Circle Stand (180°-230°)">' +
-              '🌟 Golden Circle Arc Category Area (Mid Arena 180°–230°)' +
-            '</div>' +
-            '<div class="arc-ring field-arc" data-action="select-zone" data-category="Standard" title="General Standing Field">' +
-              '🎪 General Standing Field Category Area' +
-            '</div>' +
-            '<div class="wings-wrapper">' +
-              '<div class="wing-box east-wing" data-action="select-zone" data-category="Standard">🏟️ East Stand Balcony</div>' +
-              '<div class="wing-box west-wing" data-action="select-zone" data-category="Standard">🏟️ West Stand Balcony</div>' +
-            '</div>' +
+      // Circular 360-Degree Stadium Arena Layout (matching user's attached stadium image)
+      var gridHtml = '<div class="circular-stadium-container">' +
+        '<div class="circular-stadium-wheel">' +
+          '<div class="stadium-center-field">⚡ MAIN STAGE & PITCH ⚡</div>' +
+          '<div class="inner-lounge-ring">' +
+            '<div class="lounge-sector sec-red" style="top: 10px; left: 50%; transform: translateX(-50%);" data-action="select-zone" data-category="Premium" title="Shane Warne VIP Gallery">Shane Warne VIP Gallery</div>' +
+            '<div class="lounge-sector sec-green" style="top: 60px; right: 20px;" data-action="select-zone" data-category="Premium" title="Jaisalmer Lounge West">Jaisalmer Lounge West</div>' +
+            '<div class="lounge-sector sec-blue" style="top: 130px; right: 10px;" data-action="select-zone" data-category="Premium" title="Jaipur Lounge">Jaipur Lounge</div>' +
+            '<div class="lounge-sector sec-grey" style="bottom: 60px; right: 20px;" data-action="select-zone" data-category="Premium" title="Jodhpur Lounge">Jodhpur Lounge</div>' +
+            '<div class="lounge-sector sec-purple" style="top: 130px; left: 10px;" data-action="select-zone" data-category="Premium" title="Luminous East Lawn">Luminous East Lawn</div>' +
+          '</div>' +
+          '<div class="outer-stand-ring">' +
+            '<div class="stand-sector sec-orange" style="top: 15px; left: 25%; transform: translateX(-50%);" data-action="select-zone" data-category="Standard">Luminous South East Stand</div>' +
+            '<div class="stand-sector sec-purple" style="top: 15px; right: 25%; transform: translateX(50%);" data-action="select-zone" data-category="Standard">Jio South West Stand</div>' +
+            '<div class="stand-sector sec-blue" style="top: 180px; left: 5px;" data-action="select-zone" data-category="Standard">East Stand 1 & 2</div>' +
+            '<div class="stand-sector sec-green" style="top: 260px; left: 15px;" data-action="select-zone" data-category="Standard">Ubon Audio East Stand</div>' +
+            '<div class="stand-sector sec-purple" style="bottom: 30px; left: 25%; transform: translateX(-50%);" data-action="select-zone" data-category="Standard">Super Kings North East Stand</div>' +
+            '<div class="stand-sector sec-amber" style="bottom: 10px; left: 50%; transform: translateX(-50%);" data-action="select-zone" data-category="Standard">Sambhar Lounge & Rooftop</div>' +
+            '<div class="stand-sector sec-grey" style="bottom: 30px; right: 25%; transform: translateX(50%);" data-action="select-zone" data-category="Standard">BKT Tyres North West Stand</div>' +
+            '<div class="stand-sector sec-dark" style="top: 180px; right: 5px;" data-action="select-zone" data-category="Standard">Bikaner Rooftop Boxes</div>' +
           '</div>' +
         '</div>' +
         '<div class="arc-zones-wrapper">';
@@ -899,9 +901,9 @@
         gridHtml += '<div class="stadium-zone-card' + (isZoneSelected ? ' selected-zone' : '') + '" data-action="select-zone" data-category="' + esc(cat) + '">' +
           '<div class="zone-header">' +
             '<span class="zone-title">' + esc(cat) + ' Category Area</span>' +
-            '<span class="zone-badge ' + (isVip ? 'badge-vip' : 'badge-general') + '">' + (isVip ? 'Front VIP Arc (0°-180°)' : 'Field Standing (180°-230°)') + '</span>' +
+            '<span class="zone-badge ' + (isVip ? 'badge-vip' : 'badge-general') + '">' + (isVip ? 'Inner VIP Lounges (Shane Warne / Jaisalmer / Jaipur)' : 'Outer Radial Stadium Stands') + '</span>' +
           '</div>' +
-          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Located in inner front arc directly facing main performance stage' : 'Located in general field standing area with wide stage visibility') + '</div>' +
+          '<div style="font-size:12px; color:var(--text-muted);">' + (isVip ? 'Inner circular lounge ring directly facing main performance pitch' : 'Outer 360° stadium stand sectors with full elevated view') + '</div>' +
           '<div class="zone-meta">' +
             '<span class="zone-avail">🟢 ' + info.available + ' Tickets Available</span>' +
             '<span class="zone-price">' + money(pr) + ' / ticket</span>' +
@@ -1058,15 +1060,21 @@
   }
 
   function startHoldCountdown(expiresAt) {
-    stopCountdown();
     var timerEl = $('#countdownTimer');
     if (!timerEl || !expiresAt) return;
 
+    var expTime = typeof expiresAt === 'number' ? expiresAt : Date.parse(expiresAt);
+    if (isNaN(expTime)) expTime = Date.now() + 600000;
+
+    stopCountdown();
+
     function update() {
-      var rem = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      var currentEl = $('#countdownTimer');
+      if (!currentEl) { stopCountdown(); return; }
+      var rem = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
       var m = Math.floor(rem / 60);
       var s = rem % 60;
-      if (timerEl) timerEl.textContent = pad(m) + ':' + pad(s);
+      currentEl.textContent = pad(m) + ':' + pad(s);
       if (rem <= 0) {
         stopCountdown();
         hold = null;
