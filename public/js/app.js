@@ -551,20 +551,40 @@
 
   /* ---------- Zoom & Pan Engine State ---------- */
   var currentZoom = 1.0;
+  var targetZoom = 1.0;
   var autoScale = 1.0;
   var panX = 0;
   var panY = 0;
   var isDragging = false;
   var dragStartX = 0;
   var dragStartY = 0;
+  var animFrameId = null;
 
-  function updateZoomTransform() {
+  function renderZoom() {
+    currentZoom += (targetZoom - currentZoom) * 0.35;
+    if (Math.abs(targetZoom - currentZoom) < 0.001) {
+      currentZoom = targetZoom;
+    }
+
     var canvas = $('.zoom-canvas');
-    if (!canvas) return;
-    var finalScale = currentZoom * autoScale;
-    canvas.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + finalScale + ')';
+    if (canvas) {
+      var finalScale = currentZoom * autoScale;
+      canvas.style.transform = 'translate3d(' + panX + 'px, ' + panY + 'px, 0) scale(' + finalScale + ')';
+    }
     var label = $('#zoomLabel');
-    if (label) label.textContent = Math.round(finalScale * 100) + '%';
+    if (label) label.textContent = Math.round((currentZoom * autoScale) * 100) + '%';
+
+    if (Math.abs(targetZoom - currentZoom) >= 0.001) {
+      animFrameId = requestAnimationFrame(renderZoom);
+    } else {
+      animFrameId = null;
+    }
+  }
+
+  function triggerSmoothZoom() {
+    if (!animFrameId) {
+      animFrameId = requestAnimationFrame(renderZoom);
+    }
   }
 
   function autoFitSeatMap() {
@@ -573,6 +593,7 @@
     if (!viewport || !canvas) return;
 
     currentZoom = 1.0;
+    targetZoom = 1.0;
     panX = 0;
     panY = 0;
     canvas.style.transform = 'none';
@@ -592,18 +613,18 @@
         autoScale = 1.0;
       }
 
-      updateZoomTransform();
+      triggerSmoothZoom();
     }, 20);
   }
 
   function zoomIn() {
-    currentZoom = Math.min(currentZoom * 1.25, 4.0);
-    updateZoomTransform();
+    targetZoom = Math.min(targetZoom * 1.25, 4.0);
+    triggerSmoothZoom();
   }
 
   function zoomOut() {
-    currentZoom = Math.max(currentZoom * 0.8, 0.3);
-    updateZoomTransform();
+    targetZoom = Math.max(targetZoom * 0.8, 0.3);
+    triggerSmoothZoom();
   }
 
   function zoomReset() {
@@ -636,7 +657,7 @@
     if (!isDragging) return;
     panX = e.clientX - dragStartX;
     panY = e.clientY - dragStartY;
-    updateZoomTransform();
+    triggerSmoothZoom();
   });
 
   document.addEventListener('mouseup', function () {
@@ -872,53 +893,52 @@
     var selectedCount = selectedSeats.length;
     var price = pricingOf(event);
 
-    var html = '<div class="card">';
+    var html = '<div class="booking-bar-inner">';
 
     if (hasClaim) {
-      html += '<div class="countdown-box" style="background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4);">' +
-        '<h4 style="font-size: 16px; font-weight: 700; color: #a5b4fc; margin-bottom: 4px;">🎉 Waitlist Seat Offered!</h4>' +
-        '<p style="font-size: 13px; color: var(--text-muted);">Complete checkout before the offer expires.</p>' +
+      html += '<div>' +
+        '<span style="font-size:14px; font-weight:700; color:#a5b4fc;">🎉 Waitlist Seat Offered!</span>' +
+        '<span style="font-size:13px; color:var(--text-muted); margin-left:12px;">Seats: <strong>' + selectedSeats.map(seatLabel).join(', ') + '</strong></span>' +
       '</div>';
     } else if (hasHold) {
-      html += '<div class="countdown-box">' +
-        '<div style="font-size: 12px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Seat Hold Expires In</div>' +
-        '<div class="countdown-time" id="countdownTimer">10:00</div>' +
+      html += '<div>' +
+        '<span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase; margin-right:12px;">Hold Expires: <strong id="countdownTimer" style="font-size:15px; color:var(--text-main);">10:00</strong></span>' +
+        '<span style="font-size:13px; color:var(--text-muted);">Seats: <strong style="color:var(--accent-indigo);">' + selectedSeats.map(seatLabel).join(', ') + '</strong></span>' +
       '</div>';
       startHoldCountdown(hold.expiresAt);
+    } else if (!soldOut) {
+      html += '<div>';
+      if (selectedCount) {
+        html += '<div style="font-size:14px; font-weight:700; color:var(--text-main);">Selected (' + selectedCount + '): <span style="color:var(--accent-indigo);">' + selectedSeats.map(seatLabel).join(', ') + '</span></div>' +
+          '<div style="font-size:12px; color:var(--text-muted);">10-minute instant hold on selection</div>';
+      } else {
+        html += '<div style="font-size:14px; font-weight:600; color:var(--text-muted);">Select seats on the map above (up to ' + MAX_SELECTABLE + ')</div>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div><span style="font-size:14px; font-weight:700; color:var(--rose);">Event Sold Out</span></div>';
     }
 
     if (soldOut && !hasHold && !hasClaim) {
-      html += '<h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Event Sold Out</h3>' +
-        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Join the waitlist to receive an automated notification if seats become available.</p>' +
-        '<form id="waitlistForm" data-action="submit-waitlist" data-event-id="' + esc(eventId) + '">' +
-          '<div class="form-group"><label>Category</label>' +
-            '<select name="category" class="form-control" required>' +
-              Object.keys(price || { Standard: 0 }).map(function (cat) {
-                return '<option value="' + esc(cat) + '">' + esc(cat) + '</option>';
-              }).join('') +
-            '</select></div>' +
-          '<button type="submit" class="btn btn-emerald btn-lg" style="width: 100%;">Join Waitlist</button>' +
-        '</form>';
+      html += '<form id="waitlistForm" data-action="submit-waitlist" data-event-id="' + esc(eventId) + '" style="display:flex; gap:8px; align-items:center;">' +
+        '<select name="category" class="form-control" style="padding:6px 12px; font-size:13px;" required>' +
+          Object.keys(price || { Standard: 0 }).map(function (cat) {
+            return '<option value="' + esc(cat) + '">' + esc(cat) + '</option>';
+          }).join('') +
+        '</select>' +
+        '<button type="submit" class="btn btn-emerald btn-sm" style="white-space:nowrap;">Join Waitlist</button>' +
+      '</form>';
     } else if (!hasHold && !hasClaim) {
-      html += '<h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Select Your Seats</h3>' +
-        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Choose up to ' + MAX_SELECTABLE + ' seats on the grid to place a temporary 10-minute hold.</p>' +
-        '<div style="margin-bottom: 20px;">' +
-          '<div style="font-size: 13px; color: var(--text-muted);">Selected Seats: <strong>' + (selectedCount ? selectedSeats.map(seatLabel).join(', ') : 'None') + '</strong></div>' +
-        '</div>' +
-        '<button type="button" class="btn btn-primary btn-lg" style="width: 100%;" data-action="hold-seats" data-event-id="' + esc(eventId) + '"' + (!selectedCount ? ' disabled' : '') + '>' +
-          'Hold Selected Seats (' + selectedCount + ')</button>';
+      html += '<div><button type="button" class="btn btn-primary" style="padding:10px 24px; font-weight:700; font-size:14px;" data-action="hold-seats" data-event-id="' + esc(eventId) + '"' + (!selectedCount ? ' disabled' : '') + '>' +
+        'Hold Selected Seats' + (selectedCount ? ' (' + selectedCount + ')' : '') + '</button></div>';
     } else {
       var defaultName = user ? user.name || '' : '';
       var defaultEmail = user ? user.email || '' : '';
-      html += '<h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Complete Checkout</h3>' +
-        '<p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Seats: <strong>' + selectedSeats.map(seatLabel).join(', ') + '</strong></p>' +
-        '<form id="checkoutForm" data-action="submit-booking" data-event-id="' + esc(eventId) + '">' +
-          '<div class="form-group"><label for="customerName">Full Name</label>' +
-            '<input id="customerName" name="customerName" type="text" class="form-control" value="' + esc(defaultName) + '" required></div>' +
-          '<div class="form-group"><label for="customerEmail">Email Address (for QR Ticket)</label>' +
-            '<input id="customerEmail" name="customerEmail" type="email" class="form-control" value="' + esc(defaultEmail) + '" required></div>' +
-          '<button type="submit" class="btn btn-emerald btn-lg" style="width: 100%; margin-top: 12px;">Confirm & Book Now</button>' +
-        '</form>';
+      html += '<form id="checkoutForm" data-action="submit-booking" data-event-id="' + esc(eventId) + '" style="display:flex; gap:8px; align-items:center;">' +
+        '<input id="customerName" name="customerName" type="text" class="form-control" placeholder="Your Name" value="' + esc(defaultName) + '" style="padding:6px 12px; font-size:13px; width:140px;" required>' +
+        '<input id="customerEmail" name="customerEmail" type="email" class="form-control" placeholder="Your Email" value="' + esc(defaultEmail) + '" style="padding:6px 12px; font-size:13px; width:180px;" required>' +
+        '<button type="submit" class="btn btn-emerald" style="padding:8px 18px; font-weight:700; white-space:nowrap;">Confirm & Book</button>' +
+      '</form>';
     }
 
     html += '</div>';

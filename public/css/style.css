@@ -923,13 +923,15 @@ body.no-scroll-mode .container {
 }
 
 .zoom-canvas {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1);
   transform-origin: center top;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
   will-change: transform;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .zoom-controls {
@@ -998,12 +1000,22 @@ body.no-scroll-mode .container {
 
 .event-booking-footer {
   flex-shrink: 0;
-  padding: 16px 24px;
-  background: rgba(15, 23, 42, 0.95);
+  padding: 10px 24px;
+  min-height: 56px;
+  background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: var(--glass-border);
   box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.6);
   z-index: 30;
 }
+
+.booking-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
 /* no scroll mode */
+/* sleek footer & smooth 60fps zoom */
