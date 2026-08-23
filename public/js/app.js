@@ -1365,6 +1365,28 @@
     }
   }
 
+  // Touch Drag-Pan for Mobile Ergonomics
+  var isTouchDragging = false;
+  var touchStartX = 0, touchStartY = 0;
+  document.addEventListener('touchstart', function (e) {
+    var canvas = e.target.closest('.zoom-canvas');
+    if (!canvas || e.touches.length !== 1) return;
+    isTouchDragging = true;
+    touchStartX = e.touches[0].clientX - currentPanX;
+    touchStartY = e.touches[0].clientY - touchStartY;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (!isTouchDragging || e.touches.length !== 1) return;
+    currentPanX = e.touches[0].clientX - touchStartX;
+    currentPanY = e.touches[0].clientY - touchStartY;
+    applyZoomPanTransform();
+  }, { passive: true });
+
+  document.addEventListener('touchend', function () {
+    isTouchDragging = false;
+  });
+
   /* ============================================================
    * Customer Bookings View
    * ============================================================ */

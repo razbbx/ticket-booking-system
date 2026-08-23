@@ -1674,5 +1674,137 @@ body.no-scroll-mode .container {
   width: 180px;
   height: 180px;
 }
+
+/* ============================================================
+   Mobile Ergonomics & Responsive Breakpoints
+   ============================================================ */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px 12px 100px;
+  }
+
+  .navbar-inner {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .brand {
+    font-size: 16px;
+  }
+
+  .brand-icon {
+    font-size: 20px;
+  }
+
+  .nav-links {
+    gap: 6px;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .nav-link {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .nav-user {
+    font-size: 12px;
+  }
+
+  .event-header-compact {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .arena-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .sketch-block {
+    min-height: 80px;
+    padding: 12px;
+  }
+
+  .block-title {
+    font-size: 16px;
+  }
+
+  .block-sub {
+    font-size: 10px;
+  }
+
+  .modal-card {
+    padding: 20px 16px;
+    max-width: 95%;
+  }
+
+  .qty-options-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .qty-select-btn {
+    padding: 14px 12px;
+    font-size: 14px;
+  }
+
+  .booking-bar-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  #checkoutForm {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  #checkoutForm .form-control {
+    width: 100% !important;
+  }
+
+  #checkoutForm button {
+    width: 100%;
+  }
+
+  .seat-map-viewport {
+    height: calc(100vh - 220px);
+    border-radius: 0;
+  }
+
+  .zoom-controls {
+    bottom: 16px;
+    right: 16px;
+    gap: 6px;
+  }
+
+  .zoom-btn, .zoom-reset-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .events-header-compact {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .event-card {
+    border-radius: var(--radius-md);
+  }
+
+  .stadium-zone-card {
+    padding: 14px;
+  }
+}
 /* sleek footer & smooth 60fps zoom */
 /* 1-click auto-fill, Base64 PNG QR fix, 230-degree curved stadium arc, 12 events */
