@@ -5,7 +5,7 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./public", "not_found_handling": "single-page-application" },
-  "triggers": { "crons": ["*/1 * * * *"] },
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     "APP_URL": "https://ticket-booking-system.fshare-ayush-demo.workers.dev",
     "HOLD_TTL_MINUTES": "10",

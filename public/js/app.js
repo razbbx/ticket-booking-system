@@ -12,7 +12,7 @@
     return REMOTE_API_BASE;
   })();
 
-  var POLL_MS = 3000;           // seat-map polling interval
+  var POLL_MS = 10000;          // seat-map polling interval (10s to keep D1 rows_read low)
   var MAX_SELECTABLE = 6;       // max seats a customer may select per booking
   var TYPES = ['Movie', 'Concert'];
 
